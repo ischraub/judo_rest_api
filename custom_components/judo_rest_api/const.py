@@ -34,6 +34,13 @@ class MainConstants:
     SCAN_INTERVAL = "60"  # timedelta(seconds=60))
     UNIQUE_ID = "unique_id"
     APPID = 100
+    # Lower bound for the poll interval. The connectivity module serves one
+    # request at a time, polling faster than this only produces timeouts.
+    MIN_SCAN_INTERVAL = 10
+    # Timeout for a single REST call.
+    REQUEST_TIMEOUT = 10
+    # Margin kept free at the end of a scan so the next one starts on time.
+    SCAN_MARGIN = 5
 
 
 CONST = MainConstants()
@@ -50,6 +57,7 @@ class FormatConstants:
     SWITCH = "Switch"
     BUTTON = "Button"
     TIMESTAMP = "Timestamp"
+    DATE = "Date"
     SW_VERSION = "SW_Version"
 
 

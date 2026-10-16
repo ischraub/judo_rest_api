@@ -12,8 +12,7 @@ from .const import TYPES
 from .entity_helpers import build_entity_list
 from .jdconst import DEVICELISTS
 
-logging.basicConfig()
-log: logging.Logger = logging.getLogger(name=__name__)
+_LOGGER: logging.Logger = logging.getLogger(name=__name__)
 
 
 async def async_setup_entry(
@@ -47,7 +46,4 @@ async def async_setup_entry(
             coordinator=coordinator,
         )
 
-    async_add_entities(
-        entries,
-        update_before_add=True,
-    )
+    async_add_entities(entries)

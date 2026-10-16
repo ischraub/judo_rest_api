@@ -1,44 +1,54 @@
 """Config flow."""
 
+from types import SimpleNamespace
 from typing import Any
+
 import voluptuous as vol
 from homeassistant import config_entries, exceptions
 import homeassistant.helpers.config_validation as cv
+from homeassistant.core import HomeAssistant
+
 from .const import CONF, CONST
+from .restobject import JudoApiError, RestAPI
+
+SCAN_INTERVAL_SELECTOR = vol.All(vol.Coerce(int), vol.Range(min=CONST.MIN_SCAN_INTERVAL))
 
 
-async def validate_input(data: dict) -> dict[str, Any]:
-    """Validate the input."""
-    # Validate the data can be used to set up a connection.
+async def validate_input(hass: HomeAssistant, data: dict) -> dict[str, Any]:
+    """Validate the input by actually talking to the device.
 
-    # This is a simple example to show an error in the UI for a short hostname
-    # The exceptions are defined at the end of this file, and are used in the
-    # `async_step_user` method below.
-    if len(data["host"]) < 3:
+    Without this the setup succeeded for a wrong host or password and the
+    user only noticed later, when every entity stayed empty.
+    """
+    if len(data[CONF.HOST]) < 3:
         raise InvalidHost
 
-    # If your PyPI package is not built with async, pass your methods
-    # to the executor:
-    # await hass.async_add_executor_job(
-    #     your_validate_func, data["username"], data["password"]
-    # )
+    rest_api = RestAPI(config_entry=SimpleNamespace(data=data), hass=hass)
+    try:
+        await rest_api.async_connect()
+    except JudoApiError as err:
+        raise ConnectionFailed(str(err)) from err
 
-    # If you cannot connect:
-    # throw CannotConnect
-    # If the authentication is wrong:
-    # InvalidAuth
-
-    # Return info that you want to store in the config entry.
-    # "Title" is what is displayed to the user for this hub device
-    # It is stored internally in HA as part of the device config.
-    # See `async_step_user` below for how this is used
-    return {"title": data["host"]}
+    return {"title": data[CONF.HOST]}
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=CONST.DOMAIN):  # pylint: disable=W0223
     """Class config flow."""
 
     VERSION = 2
+
+    def _postfix_in_use(self, postfix: str, ignore_entry_id: str | None = None) -> bool:
+        """Return whether another entry already uses this device postfix.
+
+        Entries sharing a postfix end up with identical unique ids and share
+        one device in the registry.
+        """
+        for entry in self._async_current_entries():
+            if entry.entry_id == ignore_entry_id:
+                continue
+            if entry.data.get(CONF.DEVICE_POSTFIX, "") == postfix:
+                return True
+        return False
     # Pick one of the available connection classes in homeassistant/config_entries.py
     # This tells HA if it should be asking for updates, or it'll be notified of updates
     # automatically. This example uses PUSH, as the dummy hub will notify HA of
@@ -65,20 +75,29 @@ class ConfigFlow(config_entries.ConfigFlow, domain=CONST.DOMAIN):  # pylint: dis
                 vol.Optional(schema=CONF.USERNAME, default="admin"): str,
                 vol.Optional(schema=CONF.PASSWORD, default="Connectivity"): str,
                 vol.Optional(schema=CONF.DEVICE_POSTFIX, default=""): str,
-                vol.Optional(schema=CONF.SCAN_INTERVAL, default="60"): str,
+                vol.Optional(
+                    schema=CONF.SCAN_INTERVAL, default=int(CONST.SCAN_INTERVAL)
+                ): SCAN_INTERVAL_SELECTOR,
             }
         )
 
         errors = {}
-        info = None
         if user_input is not None:
-            try:
-                info = await validate_input(data=user_input)
+            # One config entry per host, otherwise two entries poll the same
+            # device and fight over the same entity ids.
+            await self.async_set_unique_id(str(user_input[CONF.HOST]))
+            self._abort_if_unique_id_configured()
 
-                return self.async_create_entry(title=info["title"], data=user_input)
-
-            except Exception:  # noqa: BLE001
-                errors["base"] = "unknown error"
+            if self._postfix_in_use(user_input.get(CONF.DEVICE_POSTFIX, "")):
+                errors[CONF.DEVICE_POSTFIX] = "postfix_in_use"
+            else:
+                try:
+                    info = await validate_input(self.hass, user_input)
+                    return self.async_create_entry(title=info["title"], data=user_input)
+                except InvalidHost:
+                    errors[CONF.HOST] = "invalid_host"
+                except ConnectionFailed:
+                    errors["base"] = "cannot_connect"
 
         # If there is no user input or there were errors, show the form again,
         # #including any errors that were found with the input.
@@ -106,9 +125,20 @@ class ConfigFlow(config_entries.ConfigFlow, domain=CONST.DOMAIN):  # pylint: dis
         )
 
         if user_input:
-            return self.async_update_reload_and_abort(
-                entry=reconfigure_entry, data_updates=user_input
-            )
+            if self._postfix_in_use(
+                user_input.get(CONF.DEVICE_POSTFIX, ""), reconfigure_entry.entry_id
+            ):
+                errors[CONF.DEVICE_POSTFIX] = "postfix_in_use"
+            else:
+                try:
+                    await validate_input(self.hass, {**reconfigure_entry.data, **user_input})
+                    return self.async_update_reload_and_abort(
+                        entry=reconfigure_entry, data_updates=user_input
+                    )
+                except InvalidHost:
+                    errors[CONF.HOST] = "invalid_host"
+                except ConnectionFailed:
+                    errors["base"] = "cannot_connect"
 
         schema_reconfigure = vol.Schema(
             schema={
@@ -131,8 +161,14 @@ class ConfigFlow(config_entries.ConfigFlow, domain=CONST.DOMAIN):  # pylint: dis
                 ): str,
                 vol.Optional(
                     schema=CONF.SCAN_INTERVAL,
-                    default=reconfigure_entry.data[CONF.SCAN_INTERVAL],
-                ): str,
+                    default=int(
+                        float(
+                            reconfigure_entry.data.get(
+                                CONF.SCAN_INTERVAL, CONST.SCAN_INTERVAL
+                            )
+                        )
+                    ),
+                ): SCAN_INTERVAL_SELECTOR,
             }
         )
 

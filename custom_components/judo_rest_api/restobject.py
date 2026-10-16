@@ -1,27 +1,150 @@
 """RESTobject.
 
 A REST object that contains a REST item and communicates with the REST-API.
-It contains a REST Client for setting and getting REST response values
+It contains a REST Client for setting and getting REST response values.
 """
 
+from __future__ import annotations
+
+import asyncio
 import logging
-from datetime import datetime
-from functools import partial
-import requests
+from dataclasses import dataclass
+from datetime import date, datetime, timezone
+from typing import Any
+
+import aiohttp
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .configentry import MyConfigEntry
-from .const import DEVICETYPES, FORMATS, CONF, TYPES
+from .const import CONF, CONST, DEVICETYPES, FORMATS, TYPES
 from .items import RestItem
 
-logging.basicConfig()
-log = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__name__)
+
+
+class JudoApiError(Exception):
+    """The device could not be reached or answered with an error."""
+
+
+class JudoDecodeError(Exception):
+    """The device answered, but the payload could not be interpreted."""
+
+
+@dataclass(frozen=True, slots=True)
+class ItemValue:
+    """A decoded value together with the raw payload it came from."""
+
+    value: Any
+    raw: str
+
+
+def _hex_field(raw: str, index: int, num_bytes: int, what: str) -> str:
+    """Cut a field out of the raw hex payload, big-endian, byte order unchanged.
+
+    The device sometimes answers with a truncated payload. Slicing that
+    silently drops the *most significant* bytes once the result is reversed to
+    little-endian, which turns e.g. 1057.516 m3 into 8.940 m3 without any
+    error. So the length is checked before anything is cut.
+    """
+    needed = (index + num_bytes) * 2
+    if len(raw) < needed:
+        raise JudoDecodeError(
+            f"{what}: payload too short, need {needed} hex chars for "
+            f"{num_bytes} byte(s) at offset {index}, got {len(raw)} ({raw!r})"
+        )
+    field = raw[index * 2 : needed]
+    try:
+        bytes.fromhex(field)
+    except ValueError as err:
+        raise JudoDecodeError(f"{what}: field {field!r} is not valid hex") from err
+    return field
+
+
+def _to_int(field: str, endian: str) -> int:
+    """Interpret a hex field as an unsigned integer with the given byte order."""
+    return int.from_bytes(bytes.fromhex(field), endian)  # type: ignore[arg-type]
+
+
+def _decode_text(field: str) -> str:
+    """Decode a hex field as text, dropping padding."""
+    return bytes.fromhex(field).decode("ascii", "replace").replace("\x00", "").strip()
+
+
+def _decode_sw_version(field: str) -> str:
+    """Decode the 3 byte software version.
+
+    Layout is <letter> <minor> <major>, so reversed it reads major.minor+letter.
+    The first byte is not a printable letter on every firmware (an i-soft PRO
+    on 1.04 sends a non-printable byte there), and blindly decoding it put a
+    replacement glyph into the state, so it is only appended when printable.
+    """
+    data = bytes.fromhex(field)[::-1]
+    if len(data) < 2:
+        raise JudoDecodeError(f"software version: expected 3 bytes, got {field!r}")
+    version = f"{data[0]}.{data[1]:02d}"
+    if len(data) > 2 and 0x21 <= data[2] <= 0x7E:
+        version += chr(data[2])
+    return version
+
+
+def _decode_date(field: str) -> date:
+    """Decode the 4 byte commissioning date.
+
+    Layout is <day> <month> <year high> <year low>: the year is the one field
+    in the whole API that is big-endian. Verified against a device reporting
+    0d0507e9 -> 13.05.2025, cross-checked against its operating-day counter.
+    """
+    data = bytes.fromhex(field)
+    if len(data) < 4:
+        raise JudoDecodeError(f"date: expected 4 bytes, got {field!r}")
+    day, month = data[0], data[1]
+    year = int.from_bytes(data[2:4], "big")
+    try:
+        return date(year, month, day)
+    except ValueError as err:
+        raise JudoDecodeError(f"date: {day:02d}.{month:02d}.{year} is not a date") from err
+
+
+def decode_item(rest_item: RestItem, raw: str, divider: float = 1) -> Any:
+    """Decode the raw payload of a read command into the item's value.
+
+    Raises JudoDecodeError if the payload does not match what the item expects,
+    so that a garbled answer becomes an unavailable entity instead of a
+    plausible looking wrong number.
+    """
+    what = rest_item.translation_key
+    field = _hex_field(raw, rest_item.read_index, rest_item.read_bytes, what)
+
+    match rest_item.format:
+        case FORMATS.NUMBER:
+            return _to_int(field, rest_item.read_endian) / divider
+        case FORMATS.STATUS:
+            number = _to_int(field, rest_item.read_endian)
+            key = rest_item.get_translation_key_from_number(number)
+            if key is None:
+                raise JudoDecodeError(f"{what}: no status list to map {number}")
+            return key
+        case FORMATS.SW_VERSION:
+            return _decode_sw_version(field)
+        case FORMATS.DATE:
+            return _decode_date(field)
+        case FORMATS.TIMESTAMP:
+            return datetime.fromtimestamp(
+                _to_int(field, rest_item.read_endian), tz=timezone.utc
+            )
+        case FORMATS.TEXT:
+            return _decode_text(field)
+        case _:
+            raise JudoDecodeError(f"{what}: cannot read format {rest_item.format}")
 
 
 class RestAPI:
-    """
-    RestAPI class that provides a connection to the rest api,
-    which is used by the RestItems.
+    """Connection to the REST API of the Judo connectivity module.
+
+    The module serves a single request at a time, so every call is serialised
+    through a lock. Without it a user writing a value while the coordinator is
+    polling makes the device answer with truncated or stale payloads.
     """
 
     def __init__(self, config_entry: MyConfigEntry, hass: HomeAssistant) -> None:
@@ -32,114 +155,73 @@ class RestAPI:
         """
         self._ip = config_entry.data[CONF.HOST]
         self._port = config_entry.data[CONF.PORT]
-        self._username = config_entry.data[CONF.USERNAME]
-        self._password = config_entry.data[CONF.PASSWORD]
         self._hass = hass
-        self._rest_client = None
-        self._base_url = (
-            "http://"
-            # + str(self._user)
-            # + ":"
-            # + str(self._password)
-            # + "@"
-            + str(self._ip)
-            + ":"
-            + str(self._port)
+        self._auth = aiohttp.BasicAuth(
+            config_entry.data[CONF.USERNAME], config_entry.data[CONF.PASSWORD]
         )
-        self._api_url = self._base_url + "/api/rest/"
+        self._api_url = f"http://{self._ip}:{self._port}/api/rest/"
         self._devicetype = None
-        self._session = None
-        self._connected = False
+        self._lock = asyncio.Lock()
+        self._timeout = aiohttp.ClientTimeout(total=CONST.REQUEST_TIMEOUT)
 
-    async def login(self) -> None:
-        """Log into the portal. Create cookie to stay logged in for the session."""
-
-        _useless = await self._hass.async_add_executor_job(
-            partial(
-                requests.get,
-                url=self._base_url,
-                auth=(self._username, self._password),
-                timeout=10,
-            )
-        )
-
-        # r = requests.get(self._base_url, auth=(self._username, self._password), timeout=10 )
-        # log.warning(r.text)
-
-    async def get_rest(self, command: str):
-        """get raw response from REST api"""
-        if command is None:
-            return None
-
-        response = None
-        try:
-            log.debug("Send command %s", command)
-            url = self._api_url + command
-            response = await self._hass.async_add_executor_job(
-                partial(
-                    requests.get,
-                    url=url,
-                    auth=(self._username, self._password),
-                    timeout=10,
+    async def _request(self, command: str) -> str:
+        """Run one REST command and return the raw hex payload."""
+        url = self._api_url + command
+        session = async_get_clientsession(self._hass)
+        async with self._lock:
+            _LOGGER.debug("Send command %s", command)
+            try:
+                response = await session.get(
+                    url, auth=self._auth, timeout=self._timeout
                 )
-            )
-            log.debug("Response %s", response.status_code)
-            status = response.status_code
-            if status == 200:
-                res = await self._hass.async_add_executor_job(response.json)
-                log.debug("Content %s", str(res["data"]))
-                return res["data"]
-            else:
-                log.warning("Content ignored for API return status %s", str(status))
-                return None
-        except Exception:
-            if response is not None:
-                status = str(response.status_code)
-            else:
-                status = "unknown status"
-            log.warning("Judo REST API call failed with %s", status)
-            return None
+                if response.status != 200:
+                    raise JudoApiError(
+                        f"{command}: API returned status {response.status}"
+                    )
+                # The module labels its answer text/html, so the content type
+                # check of aiohttp has to be switched off.
+                payload = await response.json(content_type=None)
+            except (TimeoutError, aiohttp.ClientError, ValueError) as err:
+                raise JudoApiError(f"{command}: {err}") from err
 
-    async def set_rest(self, command: str, towrite: str):
-        """write raw response to REST api"""
+        if not isinstance(payload, dict) or "data" not in payload:
+            raise JudoApiError(f"{command}: answer without data field: {payload!r}")
+        data = payload["data"]
+        if not isinstance(data, str):
+            raise JudoApiError(f"{command}: data is {type(data).__name__}, not a string")
+        _LOGGER.debug("Content %s", data)
+        return data
+
+    async def async_get(self, command: str) -> str:
+        """Get the raw response for a read command."""
         if command is None:
-            return None
-        if towrite is None:
-            return None
+            raise JudoApiError("read command is None")
+        return await self._request(command)
 
-        try:
-            url = self._api_url + command + towrite
-            response = await self._hass.async_add_executor_job(
-                partial(
-                    requests.get,
-                    url=url,
-                    auth=(self._username, self._password),
-                    timeout=2,
-                )
-            )
-            res = await self._hass.async_add_executor_job(response.json)
-            return res["data"]
-        except Exception:
-            log.warning("Connection to Judo Water Treatment failed")
-            return None
+    async def async_set(self, command: str, towrite: str = "") -> None:
+        """Append the payload to a write command and send it."""
+        if command is None:
+            raise JudoApiError("write command is None")
+        await self._request(command + towrite)
 
-    async def connect(self):
-        """Open REST connection to test if available."""
-        res = await self.get_rest("FF00")
-        if res is None:
-            return None
-        if res in DEVICETYPES:
-            self._devicetype = res
-            log.info("Connected to %s %s", self._devicetype, DEVICETYPES[self._devicetype])
-            return True
+    async def async_connect(self) -> str:
+        """Read the device type to prove the device is reachable.
 
-        log.warning("Unknown Device detected, ID=%s", res)
-        return None
-
-    def close(self):
-        """Close REST connection."""
-        log.info("Connection to judo closed")
-        return True
+        The type sits in the first byte; devices answer this command with two
+        bytes ("5800"), so the whole payload must not be looked up directly.
+        An unknown id is not fatal - a device this integration has no name for
+        still serves every other command.
+        """
+        res = await self.async_get("FF00")
+        if len(res) < 2:
+            raise JudoApiError(f"FF00: device type payload too short: {res!r}")
+        devicetype = res[0:2].upper()
+        if devicetype in DEVICETYPES:
+            _LOGGER.info("Connected to %s %s", devicetype, DEVICETYPES[devicetype])
+        else:
+            _LOGGER.warning("Unknown Judo device detected, ID=%s", devicetype)
+        self._devicetype = devicetype
+        return devicetype
 
     def get_devicetype(self):
         """Return device type."""
@@ -170,10 +252,8 @@ class RestObject:
     def order_hex_buffer(self, buffer: str, flip) -> str:
         """brings a hex buffer in the right order"""
         if flip is True:
-            little_endian = bytes.fromhex(buffer)[::-1].hex()
-            return little_endian
-        big_endian = bytes.fromhex(buffer)[::1].hex()
-        return big_endian
+            return bytes.fromhex(buffer)[::-1].hex()
+        return bytes.fromhex(buffer)[::1].hex()
 
     def format_int_message(self, number: int, flip) -> str:
         """format int message as hex buffer to be sent to REST APPI"""
@@ -185,177 +265,58 @@ class RestObject:
         """format str message as hex buffer to be sent to REST APPI"""
         return self.order_hex_buffer(text.encode("utf-8").hex(), flip)
 
-    @property
-    async def value(self):
-        """Returns the value from the REST API."""
-        if self._rest_api is None:
-            return None
+    async def async_read(self) -> ItemValue:
+        """Read and decode this item. Raises on any problem."""
         if self._rest_item.format is FORMATS.BUTTON:
-            return None
+            raise JudoDecodeError(f"{self._rest_item.translation_key} is write only")
+        raw = await self._rest_api.async_get(self._rest_item.address_read)
+        return ItemValue(decode_item(self._rest_item, raw, self._divider), raw)
 
-        res = await self._rest_api.get_rest(self._rest_item.address_read)
+    async def async_press(self) -> None:
+        """Trigger a button item."""
+        await self._rest_api.async_set(self._rest_item.address_write, "")
 
-        if res is None:
-            return None
-
-        # Store the raw value in the rest_item
-        self._rest_item.raw_value = res
-
-        index = self._rest_item.read_index * 2
-        big_endian = res[index : index + self._rest_item.read_bytes * 2]
-        little_endian = bytes.fromhex(big_endian)[::-1].hex()
-        big_endian = bytes.fromhex(big_endian)[::1].hex()
-
-        if big_endian is None:
-            return None
-        if little_endian is None:
-            return None
-        if big_endian == "":
-            return None
-        if little_endian == "":
-            return None
-        match self._rest_item.format:
-            case FORMATS.SWITCH:
-                return None
-            case FORMATS.NUMBER:
-                return float(int(little_endian, 16) / self._divider)
-            case FORMATS.SW_VERSION:
-                major = str(int(little_endian[0:2], 16))
-                minor = str(int(little_endian[2:4], 16)).zfill(2)
-                letter = str(bytearray.fromhex(little_endian[4:6]).decode())
-                return str(major + "." + minor + letter)
-            case FORMATS.TIMESTAMP:
-                return str(datetime.fromtimestamp(int(big_endian, 16)))
-            case FORMATS.TEXT:
-                return bytearray.fromhex(big_endian).decode()
-            case FORMATS.STATUS:
-                return self._rest_item.get_translation_key_from_number(
-                    int(little_endian, 16)
-                )
-            case _:
-                log.warning(
-                    "Unknown format: %s in %s",
-                    str(self._rest_item.type),
-                    str(self._rest_item.translation_key),
-                )
-                return None
-        return None
-
-    # @value.setter
-    async def setvalue(self, value=None) -> None:
-        """Set the value of the rest register, does nothing when not R/W."""
-        """:param val: The value to write to the rest"""
-        """:type val: any"""
-        towrite = None
-        if self._rest_api is None:
-            return
-
+    async def async_write(self, value) -> Any:
+        """Write a value to the device and return what was written."""
         if self._rest_item.type == TYPES.SENSOR:
-            return
-        if self._rest_item.format is FORMATS.BUTTON:
-            await self._rest_api.set_rest(self._rest_item.address_write, "")
-            return
-        if value is None:
-            return
-        self._rest_item.state = value
+            raise JudoApiError(f"{self._rest_item.translation_key} is read only")
+
         match self._rest_item.format:
-            case FORMATS.SWITCH:
-                if value == 0:
-                    await self._rest_api.set_rest(self._rest_item.address_read, "")
-                if value == 1:
-                    await self._rest_api.set_rest(self._rest_item.address_write, "")
-                return
             case FORMATS.NUMBER:
                 towrite = self.format_int_message(
                     int(float(value) * self._divider), True
                 )
             case FORMATS.TEXT:
-                towrite = self.format_str_message((value), True)
+                towrite = self.format_str_message(str(value), True)
             case FORMATS.STATUS:
-                towrite = self.format_int_message(
-                    (self._rest_item.get_number_from_translation_key(value))
-                    * self._divider,
-                    True,
-                )
+                number = self._rest_item.get_number_from_translation_key(value)
+                if number is None or number < 0:
+                    raise JudoApiError(
+                        f"{self._rest_item.translation_key}: unknown option {value!r}"
+                    )
+                towrite = self.format_int_message(int(number * self._divider), True)
             case _:
-                log.warning(
-                    "Unknown format: %s in %s",
-                    str(self._rest_item.type),
-                    str(self._rest_item.translation_key),
+                raise JudoApiError(
+                    f"{self._rest_item.translation_key}: cannot write format "
+                    f"{self._rest_item.format}"
                 )
-                return
-        if towrite is not None:
-            await self._rest_api.set_rest(self._rest_item.address_write, towrite)
-        return
 
-    async def addvalue(self, value=None) -> None:
-        """Set the value of the rest register, does nothing when not R/W."""
-        """:param val: The value to write to the rest"""
-        """:type val: any"""
-        towrite = None
-        if self._rest_api is None:
-            return None
+        await self._rest_api.async_set(self._rest_item.address_write, towrite)
+        return value
 
-        if self._rest_item.type == TYPES.SENSOR:
-            return None
-        if self._rest_item.format is FORMATS.BUTTON:
-            return None
-        if value is None:
-            return None
-
-        res = await self._rest_api.get_rest(self._rest_item.address_read)
-
-        if res is None:
-            return None
-
-        index = self._rest_item.read_index * 2
-        big_endian = res[index : index + self._rest_item.read_bytes * 2]
-        little_endian = bytes.fromhex(big_endian)[::-1].hex()
-        big_endian = bytes.fromhex(big_endian)[::1].hex()
-
-        if big_endian is None:
-            return None
-        if little_endian is None:
-            return None
-        if big_endian == "":
-            return None
-        if little_endian == "":
-            return None
-        offset = float(int(little_endian, 16) / self._divider)
-
-        #        self._rest_item.state = value + offset
-        match self._rest_item.format:
-            case FORMATS.NUMBER:
-                self._rest_item.state = value + offset
-                towrite = self.format_int_message(
-                    int((float(value) + float(offset)) * self._divider), True
+    async def async_add(self, value) -> Any:
+        """Add a value to the one currently stored in the device."""
+        current = await self.async_read()
+        if self._rest_item.format is FORMATS.STATUS:
+            number = self._rest_item.get_number_from_translation_key(value)
+            if number is None or number < 0:
+                raise JudoApiError(
+                    f"{self._rest_item.translation_key}: unknown option {value!r}"
                 )
-            case FORMATS.TEXT:
-                self._rest_item.state = value + offset
-                towrite = self.format_str_message((value + offset), True)
-            case FORMATS.STATUS:
-                self._rest_item.state = (
-                    self._rest_item.get_number_from_translation_key(value) + offset
-                )
-                towrite = self.format_int_message(
-                    int(
-                        (
-                            float(
-                                self._rest_item.get_number_from_translation_key(value)
-                            )
-                            + float(offset)
-                        )
-                        * self._divider
-                    ),
-                    True,
-                )
-            case _:
-                log.warning(
-                    "Unknown format: %s in %s",
-                    str(self._rest_item.type),
-                    str(self._rest_item.translation_key),
-                )
-                return
-        if towrite is not None:
-            await self._rest_api.set_rest(self._rest_item.address_write, towrite)
-        return
+            new_value = float(number) + float(current.value)
+        else:
+            new_value = float(value) + float(current.value)
+
+        towrite = self.format_int_message(int(new_value * self._divider), True)
+        await self._rest_api.async_set(self._rest_item.address_write, towrite)
+        return new_value

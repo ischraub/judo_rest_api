@@ -7,8 +7,7 @@ from .const import TYPES
 from .coordinator import MyCoordinator
 from .entities import MySensorEntity, MyNumberEntity, MyButtonEntity, MySelectEntity
 
-logging.basicConfig()
-log = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
 
 async def build_entity_list(

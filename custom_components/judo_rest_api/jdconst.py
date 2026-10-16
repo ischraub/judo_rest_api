@@ -118,7 +118,7 @@ PARAMS_MASS: dict = {
     "max": 100,
     "step": 1,
     "divider": 1000,
-    "preciosion": 2,
+    "precision": 2,
     "unit": UnitOfMass.KILOGRAMS,
     "stateclass": SensorStateClass.MEASUREMENT,
     "icon": "mdi:weight-kilogram"
@@ -126,9 +126,9 @@ PARAMS_MASS: dict = {
 
 PARAMS_DAYS: dict = {
     "min": 1,
-    "max": 255,
+    "max": 65535,
     "step": 1,
-    "preciosion": 0,
+    "precision": 0,
     "unit": UnitOfTime.DAYS,
     "stateclass": SensorStateClass.MEASUREMENT,
     "icon": "mdi:timelapse"
@@ -136,7 +136,7 @@ PARAMS_DAYS: dict = {
 
 PARAMS_MINUTES: dict = {
     "step": 1,
-    "preciosion": 0,
+    "precision": 0,
     "unit": UnitOfTime.MINUTES,
     "stateclass": SensorStateClass.MEASUREMENT,
     "icon": "mdi:timelapse"
@@ -144,7 +144,7 @@ PARAMS_MINUTES: dict = {
 
 PARAMS_HOURS: dict = {
     "step": 1,
-    "preciosion": 0,
+    "precision": 0,
     "unit": UnitOfTime.HOURS,
     "stateclass": SensorStateClass.MEASUREMENT,
     "icon": "mdi:timelapse"
@@ -154,7 +154,7 @@ PARAMS_GDH: dict = {
     "min": 1,
     "max": 18,
     "step": 1,
-    "preciosion": 1,
+    "precision": 0,
     "unit": "°dH",
     "divider": 1,
     "stateclass": SensorStateClass.MEASUREMENT,
@@ -166,7 +166,7 @@ PARAMS_QBM_H: dict = {
     "max": 100,
     "step": 1,
     "divider": 1000,
-    "preciosion": 3,
+    "precision": 3,
     "unit": UnitOfVolume.CUBIC_METERS,
     "stateclass": SensorStateClass.TOTAL_INCREASING,
     "deviceclass": SensorDeviceClass.WATER,
@@ -178,7 +178,7 @@ PARAMS_QBM_W: dict = {
     "max": 100,
     "step": 1,
     "divider": 1000,
-    "preciosion": 3,
+    "precision": 3,
     "unit": UnitOfVolume.CUBIC_METERS,
     "stateclass": SensorStateClass.TOTAL_INCREASING,
     "deviceclass": SensorDeviceClass.WATER,
@@ -205,13 +205,27 @@ PARAMS_INFO: dict = {
     "icon": "mdi:information-box-outline"
 }
 
+# A serial number must not be a MEASUREMENT: it would be recorded as a
+# statistic and was rendered as "2.825.589.796,00".
+PARAMS_SERIAL: dict = {
+    "icon": "mdi:identifier",
+    "precision": 0,
+    "stateclass": None,
+}
+
+PARAMS_DATE: dict = {
+    "icon": "mdi:calendar-check",
+    "deviceclass": SensorDeviceClass.DATE,
+    "stateclass": None,
+}
+
 PARAMS_MASS_REFILL: dict = {
     "icon": "mdi:weight-kilogram",
     "min": 0,
     "max": 50,
     "step": 0.05,
     "divider": 1000,
-    "preciosion": 3,
+    "precision": 3,
     "unit": UnitOfMass.KILOGRAMS,
     "stateclass": SensorStateClass.MEASUREMENT
 }
@@ -220,7 +234,7 @@ PARAMS_MASS_REFILL: dict = {
 # fmt: off
 REST_SYS_ITEMS: list[RestItem] = [
     RestItem( address_read="FF00", read_bytes = 2, read_index=0, mformat=FORMATS.STATUS, mtype=TYPES.SENSOR, device=DEVICES.SYS, resultlist=UNIT_TYPE, params=PARAMS_INFO, translation_key="device_type", entity_category=EntityCategory.DIAGNOSTIC),
-    RestItem( address_read="0600", read_bytes = 4, read_index=0, mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_INFO, translation_key="device_number", entity_category=EntityCategory.DIAGNOSTIC),
+    RestItem( address_read="0600", read_bytes = 4, read_index=0, mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_SERIAL, translation_key="device_number", entity_category=EntityCategory.DIAGNOSTIC),
     RestItem( address_read="0100", read_bytes = 3, read_index=0, mformat=FORMATS.SW_VERSION, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_INFO, translation_key="software_version", entity_category=EntityCategory.DIAGNOSTIC),
 
     RestItem( address_read="5100", read_bytes = 2, read_index=0, address_write="3000", write_bytes = 1, write_index=0, mformat=FORMATS.NUMBER, mtype=TYPES.NUMBER, device=DEVICES.SYS, params=PARAMS_GDH,translation_key="water_hardeness"),
@@ -236,8 +250,8 @@ REST_SYS_ITEMS: list[RestItem] = [
     RestItem( address_read="5800", read_bytes = 16, read_index=0, mformat=FORMATS.TEXT, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_CONTACT, translation_key="service_contact", entity_category=EntityCategory.DIAGNOSTIC),
     RestItem( address_read="2500", read_bytes = 1, read_index=0, mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_MINUTES, translation_key="operating_minutes", entity_category=EntityCategory.DIAGNOSTIC),
     RestItem( address_read="2500", read_bytes = 1, read_index=1, mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_HOURS, translation_key="operating_hours", entity_category=EntityCategory.DIAGNOSTIC),
-    RestItem( address_read="2500", read_bytes = 2, read_index=2, mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_DAYS, translation_key="operating_days", entity_category=EntityCategory.DIAGNOSTIC),
-    RestItem( address_read="0E00", read_bytes = 4, read_index=0, mformat=FORMATS.TIMESTAMP, mtype=TYPES.SENSOR, device=DEVICES.SYS,params=PARAMS_INFO, translation_key="install_date", entity_category=EntityCategory.DIAGNOSTIC),
+    RestItem( address_read="2500", read_bytes = 2, read_index=2, read_endian="big", mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_DAYS, translation_key="operating_days", entity_category=EntityCategory.DIAGNOSTIC),
+    RestItem( address_read="0E00", read_bytes = 4, read_index=0, mformat=FORMATS.DATE, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_DATE, translation_key="install_date", entity_category=EntityCategory.DIAGNOSTIC),
 
     RestItem(address_write="3C00", write_bytes = 0, write_index=0, mformat=FORMATS.BUTTON, mtype=TYPES.BUTTON, device=DEVICES.SYS, params=PARAMS_CLOSE, translation_key="leakage_protection_close"),
     RestItem(address_write="3D00", write_bytes = 0, write_index=0, mformat=FORMATS.BUTTON, mtype=TYPES.BUTTON, device=DEVICES.SYS, params=PARAMS_OPEN, translation_key="leakage_protection_open"),

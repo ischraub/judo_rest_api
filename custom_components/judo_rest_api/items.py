@@ -43,9 +43,12 @@ class StatusItem:
 
 
 class RestItem:
-    """Class ApiIem item.
+    """Immutable description of a single value in the REST API.
 
-    This can either be a RestItem or a WebifItem
+    This is a *description only*. The instances live in module level lists in
+    jdconst.py and are therefore shared by every config entry, so they must
+    never carry a measured value. Values live in the coordinator, keyed by
+    :attr:`key`.
     """
 
     def __init__(
@@ -63,6 +66,7 @@ class RestItem:
         resultlist=None,
         params: dict = None,
         entity_category: EntityCategory = None,
+        read_endian: str = "little",
     ) -> None:
         """Initialise RestItem."""
         self._translation_key = translation_key
@@ -78,8 +82,7 @@ class RestItem:
         self._entity_category = entity_category
         self._resultlist = resultlist
         self._params = params
-        self._state = None
-        self._raw_value = None
+        self._read_endian = read_endian
 
     @property
     def params(self) -> dict:
@@ -91,14 +94,14 @@ class RestItem:
         self._params = val
 
     @property
-    def state(self):
-        """Return the state of the item set by restobject."""
-        return self._state
+    def key(self) -> str:
+        """Return the key this item's value is stored under in the coordinator."""
+        return self._device + "_" + self._translation_key
 
-    @state.setter
-    def state(self, val):
-        """Set the state of the item from rest."""
-        self._state = val
+    @property
+    def read_endian(self) -> str:
+        """Return the byte order of the field to read ("little" or "big")."""
+        return self._read_endian
 
     @property
     def format(self) -> FormatConstants:
@@ -124,16 +127,6 @@ class RestItem:
     def entity_category(self) -> EntityCategory:
         """Return entity category."""
         return self._entity_category
-
-    @property
-    def raw_value(self):
-        """Return the raw value from REST API."""
-        return self._raw_value
-
-    @raw_value.setter
-    def raw_value(self, val):
-        """Set the raw value from REST API."""
-        self._raw_value = val
 
     @property
     def translation_key(self) -> str:
