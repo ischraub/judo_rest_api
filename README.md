@@ -19,6 +19,9 @@ Stability and decoding fixes.
 * The device postfix is now part of the unique ids and the device identifiers. Two config entries no longer overwrite each other's readings and no longer collapse into one device. Existing unique ids are migrated automatically.
 * The config flow tests the connection, rejects a duplicate host and a postfix that is already in use.
 
+**Entities**
+* `operating_minutes`, `operating_hours` and `operating_days` were three sensors for three fields of one counter, so "operating hours" only ever showed the 0..23 remainder. They are replaced by a single `operating_time` sensor in hours (TOTAL_INCREASING). The three old entities are removed from the registry automatically on upgrade.
+
 **Diagnostics**
 * The raw payloads moved from the entity attributes into the diagnostics download (device page -> three dots -> "Download diagnostics"). In the attributes they changed on every scan, which wrote a new recorder row per entity per scan.
 
@@ -72,6 +75,8 @@ custom_components
 │   ├── ...
 │   └── sensor.py  
 ```
+
+Note: `tools/` in this repository holds a bench script for dumping the raw answers of a device. It is not part of the integration and does not need to be copied.
 ## Configuration
 ![image](https://github.com/user-attachments/assets/36f25cdd-d969-4b80-bdf8-bdedd86e57ad)
 

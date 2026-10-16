@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date
 from typing import Any
 
 import aiohttp
@@ -88,6 +88,25 @@ def _decode_sw_version(field: str) -> str:
     return version
 
 
+def _decode_operating_time(field: str, endian: str) -> float:
+    """Decode the 4 byte operating time counter into hours.
+
+    Layout is <minutes> <hours> <days, 2 bytes>. The three parts used to be
+    three separate MEASUREMENT sensors, so "operating hours" showed the 0..23
+    remainder rather than the operating time.
+
+    The byte order of the day counter is firmware dependent: an i-soft PRO on
+    1.04 answers big-endian, while a payload captured from an i-soft on 2.21k
+    only makes sense little-endian. Hence it comes from the item.
+    """
+    data = bytes.fromhex(field)
+    if len(data) < 4:
+        raise JudoDecodeError(f"operating time: expected 4 bytes, got {field!r}")
+    minutes, hours = data[0], data[1]
+    days = int.from_bytes(data[2:4], endian)  # type: ignore[arg-type]
+    return days * 24 + hours + minutes / 60
+
+
 def _decode_date(field: str) -> date:
     """Decode the 4 byte commissioning date.
 
@@ -129,10 +148,8 @@ def decode_item(rest_item: RestItem, raw: str, divider: float = 1) -> Any:
             return _decode_sw_version(field)
         case FORMATS.DATE:
             return _decode_date(field)
-        case FORMATS.TIMESTAMP:
-            return datetime.fromtimestamp(
-                _to_int(field, rest_item.read_endian), tz=timezone.utc
-            )
+        case FORMATS.DURATION:
+            return _decode_operating_time(field, rest_item.read_endian)
         case FORMATS.TEXT:
             return _decode_text(field)
         case _:

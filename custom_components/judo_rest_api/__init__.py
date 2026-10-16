@@ -16,11 +16,16 @@ from .restobject import RestAPI
 
 _LOGGER = logging.getLogger(__name__)
 
+RETIRED_UNIQUE_ID_SUFFIXES = (
+    "_operating_minutes",
+    "_operating_hours",
+    "_operating_days",
+)
+
 PLATFORMS: list[str] = [
     "number",
     "select",
     "sensor",
-    # "switch",
     "button",
 ]
 
@@ -49,6 +54,29 @@ async def _async_migrate_unique_ids(hass: HomeAssistant, entry: MyConfigEntry) -
     await er.async_migrate_entries(hass, entry.entry_id, _migrate)
 
 
+async def _async_remove_retired_entities(
+    hass: HomeAssistant, entry: MyConfigEntry
+) -> None:
+    """Drop entities this version no longer creates.
+
+    operating_minutes / operating_hours / operating_days were three sensors for
+    three fields of one counter, so "operating hours" only showed the 0..23
+    remainder. They are replaced by operating_time. Without removing them they
+    would stay in the registry forever as unavailable leftovers.
+    """
+    registry = er.async_get(hass)
+    # Snapshot: the registry is mutated inside the loop.
+    for registry_entry in list(
+        er.async_entries_for_config_entry(registry, entry.entry_id)
+    ):
+        if registry_entry.unique_id.endswith(RETIRED_UNIQUE_ID_SUFFIXES):
+            _LOGGER.info(
+                "Removing %s, replaced by the combined operating_time sensor",
+                registry_entry.entity_id,
+            )
+            registry.async_remove(registry_entry.entity_id)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: MyConfigEntry) -> bool:
     """Set up entry."""
     if entry.unique_id is None:
@@ -60,6 +88,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MyConfigEntry) -> bool:
         )
 
     await _async_migrate_unique_ids(hass, entry)
+    await _async_remove_retired_entities(hass, entry)
 
     restapi = RestAPI(config_entry=entry, hass=hass)
 

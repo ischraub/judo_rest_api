@@ -40,13 +40,6 @@ async def async_setup_entry(
             entries=entries,
             config_entry=config_entry,
             rest_items=device,
-            item_type=TYPES.SENSOR_CALC,
-            coordinator=coordinator,
-        )
-        entries = await build_entity_list(
-            entries=entries,
-            config_entry=config_entry,
-            rest_items=device,
             item_type=TYPES.SENSOR,
             coordinator=coordinator,
         )

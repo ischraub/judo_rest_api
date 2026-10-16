@@ -13,11 +13,6 @@ from homeassistant.helpers.entity import EntityCategory
 from .const import DEVICES, FORMATS, TYPES
 from .items import RestItem, StatusItem
 
-reverse_device_list: dict[str, str] = {
-    "dev_system": "SYS",
-    #    "dev_statistik": "ST",
-}
-
 ################################################################################
 # Listen mit Fehlermeldungen, Warnmeldungen und Statustexte
 # Beschreibungstext ist ebenfalls möglich
@@ -134,19 +129,14 @@ PARAMS_DAYS: dict = {
     "icon": "mdi:timelapse"
 }
 
-PARAMS_MINUTES: dict = {
-    "step": 1,
-    "precision": 0,
-    "unit": UnitOfTime.MINUTES,
-    "stateclass": SensorStateClass.MEASUREMENT,
-    "icon": "mdi:timelapse"
-}
-
-PARAMS_HOURS: dict = {
-    "step": 1,
-    "precision": 0,
+# The device reports minutes, hours and days of its operating time as three
+# separate fields of one counter. Split into three sensors they were
+# misleading: "operating hours" only ever showed the 0..23 remainder.
+PARAMS_OPERATING_TIME: dict = {
+    "precision": 2,
     "unit": UnitOfTime.HOURS,
-    "stateclass": SensorStateClass.MEASUREMENT,
+    "stateclass": SensorStateClass.TOTAL_INCREASING,
+    "deviceclass": SensorDeviceClass.DURATION,
     "icon": "mdi:timelapse"
 }
 
@@ -248,9 +238,7 @@ REST_SYS_ITEMS: list[RestItem] = [
     RestItem( address_read="2900", read_bytes = 4, read_index=0, mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_QBM_W, translation_key="water_treated"),
 
     RestItem( address_read="5800", read_bytes = 16, read_index=0, mformat=FORMATS.TEXT, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_CONTACT, translation_key="service_contact", entity_category=EntityCategory.DIAGNOSTIC),
-    RestItem( address_read="2500", read_bytes = 1, read_index=0, mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_MINUTES, translation_key="operating_minutes", entity_category=EntityCategory.DIAGNOSTIC),
-    RestItem( address_read="2500", read_bytes = 1, read_index=1, mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_HOURS, translation_key="operating_hours", entity_category=EntityCategory.DIAGNOSTIC),
-    RestItem( address_read="2500", read_bytes = 2, read_index=2, read_endian="big", mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_DAYS, translation_key="operating_days", entity_category=EntityCategory.DIAGNOSTIC),
+    RestItem( address_read="2500", read_bytes = 4, read_index=0, read_endian="big", mformat=FORMATS.DURATION, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_OPERATING_TIME, translation_key="operating_time", entity_category=EntityCategory.DIAGNOSTIC),
     RestItem( address_read="0E00", read_bytes = 4, read_index=0, mformat=FORMATS.DATE, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_DATE, translation_key="install_date", entity_category=EntityCategory.DIAGNOSTIC),
 
     RestItem(address_write="3C00", write_bytes = 0, write_index=0, mformat=FORMATS.BUTTON, mtype=TYPES.BUTTON, device=DEVICES.SYS, params=PARAMS_CLOSE, translation_key="leakage_protection_close"),

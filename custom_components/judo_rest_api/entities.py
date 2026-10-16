@@ -8,7 +8,6 @@ from homeassistant.components.button import ButtonEntity
 from homeassistant.components.number import NumberEntity
 from homeassistant.components.select import SelectEntity
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
-from homeassistant.components.switch import SwitchEntity
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -74,7 +73,6 @@ class MyEntity(CoordinatorEntity[MyCoordinator]):
             case (
                 FORMATS.STATUS
                 | FORMATS.TEXT
-                | FORMATS.TIMESTAMP
                 | FORMATS.DATE
                 | FORMATS.SW_VERSION
                 | FORMATS.BUTTON
@@ -172,37 +170,6 @@ class MyNumberEntity(MyEntity, NumberEntity):  # pylint: disable=W0223
                 f"Could not write {self._rest_item.translation_key}: {err}"
             ) from err
         self._coordinator.async_set_value(self._rest_item.key, written)
-
-
-class MySwitchEntity(MyEntity, SwitchEntity):  # pylint: disable=W0223
-    """Represent a Switch Entity.
-
-    Class that represents a switch entity derived from SwitchEntity
-    and decorated with general parameters from MyEntity
-    """
-
-    @property
-    def is_on(self):
-        """Return whether the switch is on."""
-        return self._item_value
-
-    async def _async_set(self, value) -> None:
-        ro = RestObject(self._rest_api, self._rest_item)
-        try:
-            written = await ro.async_write(value)
-        except (JudoApiError, JudoDecodeError) as err:
-            raise HomeAssistantError(
-                f"Could not switch {self._rest_item.translation_key}: {err}"
-            ) from err
-        self._coordinator.async_set_value(self._rest_item.key, written)
-
-    async def async_turn_on(self, **kwargs):
-        """Turn the entity on."""
-        await self._async_set(1)
-
-    async def async_turn_off(self, **kwargs):
-        """Turn the entity off."""
-        await self._async_set(0)
 
 
 class MyButtonEntity(MyEntity, ButtonEntity):  # pylint: disable=W0223

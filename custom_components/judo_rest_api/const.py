@@ -53,11 +53,9 @@ class FormatConstants:
     NUMBER = "number"
     TEXT = "text"
     STATUS = "status"
-    UNKNOWN = "unknown"
-    SWITCH = "Switch"
     BUTTON = "Button"
-    TIMESTAMP = "Timestamp"
     DATE = "Date"
+    DURATION = "Duration"
     SW_VERSION = "SW_Version"
 
 
@@ -69,12 +67,10 @@ class TypeConstants:
     """Type constants."""
 
     SENSOR = "Sensor"
-    SENSOR_CALC = "Sensor_Calc"
     SELECT = "Select"
     SELECT_NOIF = "Select_noif"
     NUMBER = "Number"
     NUMBER_RO = "Number_RO"
-    SWITCH = "Switch"
     BUTTON = "Button"
 
 

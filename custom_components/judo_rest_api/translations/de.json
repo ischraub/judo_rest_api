@@ -143,20 +143,14 @@
       "service_contact": {
         "name": "Kundendienst-Kontakt"
       },
-      "operating_days": {
-        "name": "Betriebszeit Tage"
-      },
-      "operating_minutes": {
-        "name": "Betriebszeit Minuten"
-      },
-      "operating_hours": {
-        "name": "Betriebszeit Stunden"
-      },
       "install_date": {
         "name": "Inbetriebnahmedatum"
       },
       "leakage_protection": {
         "name": "Leckageschutz"
+      },
+      "operating_time": {
+        "name": "Betriebszeit"
       }
     }
   },
