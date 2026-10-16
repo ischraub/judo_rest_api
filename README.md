@@ -1,3 +1,7 @@
+# Version 1.1.3
+* `operating_time` now declares a `deadband` of 1 hour. The counter advances by 1/60 h every minute, so at a 60 s scan interval every single scan was a state change: ~1440 recorder rows a day for a number that is only interesting to the hour. Now ~23. Simulated over a week the reported value stayed within 15 minutes of the real counter - the deadband bounds the lag, it does not accumulate.
+* `water_total` and `water_treated` deliberately keep no deadband: they resolve to one litre and change often while water runs, but that is the data the water dashboard needs.
+
 # Version 1.1.2
 * Items can now declare a `deadband`: a change smaller than that is not reported, so it produces neither a state change nor a recorder row. The deadband is measured against the last reported value rather than the last reading, so slow genuine drift still accumulates until it crosses the threshold - the value is quantised, not lost, and the reported value never lags by more than one deadband.
   * `salt_storage_mass`: 50 g. The scale wobbles by a gram or two while nothing is being used, which produced a state change on every single scan. 50 g is the step the entity can be set in anyway and far below the ~250 g one regeneration uses. Against a measured series this cut 11 events in 25 minutes down to 1.

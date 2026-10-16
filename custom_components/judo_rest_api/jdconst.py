@@ -137,7 +137,11 @@ PARAMS_OPERATING_TIME: dict = {
     "unit": UnitOfTime.HOURS,
     "stateclass": SensorStateClass.TOTAL_INCREASING,
     "deviceclass": SensorDeviceClass.DURATION,
-    "icon": "mdi:timelapse"
+    "icon": "mdi:timelapse",
+    # The counter advances by 1/60 h every minute, so at a 60 s scan interval
+    # every single scan was a state change: ~1440 recorder rows a day for a
+    # number that is only interesting to the hour. One hour cuts that to ~23.
+    "deadband": 1.0,
 }
 
 PARAMS_GDH: dict = {
