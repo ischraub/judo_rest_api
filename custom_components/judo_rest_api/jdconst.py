@@ -217,7 +217,11 @@ PARAMS_MASS_REFILL: dict = {
     "divider": 1000,
     "precision": 3,
     "unit": UnitOfMass.KILOGRAMS,
-    "stateclass": SensorStateClass.MEASUREMENT
+    "stateclass": SensorStateClass.MEASUREMENT,
+    # The scale wobbles by a gram or two at rest, which produced a state change
+    # on every scan. Report only once it moved by at least 50 g - the step this
+    # entity can be set in anyway, and far below what one regeneration uses.
+    "deadband": 0.05,
 }
 # pylint: disable=line-too-long
 

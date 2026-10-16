@@ -77,6 +77,24 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
         self._budget = max(CONST.REQUEST_TIMEOUT, self._scan_interval - CONST.SCAN_MARGIN)
 
     @staticmethod
+    def _is_noise(rest_item: RestItem, old_value: Any, new_value: Any) -> bool:
+        """Return whether a change is too small to be worth reporting.
+
+        The salt scale wobbles by a gram or two while nothing is being used, so
+        without this every single scan produced a state change and a recorder
+        row. The deadband is measured against the last *reported* value, not
+        the last reading, so slow genuine drift still accumulates until it
+        crosses the threshold - nothing is lost, the value is only quantised.
+        """
+        deadband = (rest_item.params or {}).get("deadband")
+        if not deadband:
+            return False
+        try:
+            return abs(float(new_value) - float(old_value)) < float(deadband)
+        except (TypeError, ValueError):
+            return False
+
+    @staticmethod
     def _is_readable(rest_item: RestItem) -> bool:
         """Return whether this item can be polled."""
         return (
@@ -147,7 +165,14 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
             raw: str | None = None
             try:
                 raw = await rest_object.async_read_raw()
-                data[item.key] = ItemValue(rest_object.decode(raw), raw)
+                value = rest_object.decode(raw)
+                previous = (self.data or {}).get(item.key)
+                if previous is not None and self._is_noise(item, previous.value, value):
+                    # Carry the previous entry over unchanged, so the new data
+                    # compares equal and no listener is woken at all.
+                    data[item.key] = previous
+                else:
+                    data[item.key] = ItemValue(value, raw)
             except (JudoApiError, JudoDecodeError) as err:
                 # Keep the payload: for a decode failure it is the only thing
                 # that says why, and it is what diagnostics reports.
