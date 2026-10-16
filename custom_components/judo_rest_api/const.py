@@ -52,6 +52,7 @@ class FormatConstants:
 
     NUMBER = "number"
     TEXT = "text"
+    SERIAL = "Serial"
     STATUS = "status"
     BUTTON = "Button"
     DATE = "Date"

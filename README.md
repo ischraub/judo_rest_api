@@ -1,3 +1,11 @@
+# Version 1.1.1
+Follow-up to 1.1.0, from testing against an i-soft PRO.
+
+* `device_type` and `service_contact` had gone unavailable. The length check introduced in 1.1.0 was too strict for them: the device answers `FF00` with one byte and `5800` with fewer than the declared 16. The check now only applies exactly to numeric fields, where a short payload silently loses its high-order bytes; text takes whatever arrives. `device_type` is declared as the one byte it is.
+* Because `device_type` failed, the device stayed on the fallback name "Judo Device". Device info is now pushed into the device registry once the values arrive, instead of only being read when an entity is added.
+* `device_number` is decoded as a string, so it can no longer render as "2825589796.0" nor be recorded as a statistic.
+* Diagnostics now reports the raw payload and the error of items that failed to decode - previously exactly the items you want to look at were the ones missing from it.
+
 # Version 1.1.0
 Stability and decoding fixes.
 

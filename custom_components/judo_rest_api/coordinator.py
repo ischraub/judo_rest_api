@@ -8,6 +8,7 @@ from time import monotonic
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.translation import async_get_translations
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -68,6 +69,10 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
         self._readable = [item for item in api_items if self._is_readable(item)]
         self._config_entry = p_config_entry
         self._cached_device_info: dict[str, Any] = {}
+        self._translations: dict[str, str] | None = None
+        # key -> (raw payload or None, message). Kept for diagnostics: an item
+        # that fails to decode is the one whose payload you want to see.
+        self._last_errors: dict[str, tuple[str | None, str]] = {}
         # Leave a little room so a slow scan does not run into the next one.
         self._budget = max(CONST.REQUEST_TIMEOUT, self._scan_interval - CONST.SCAN_MARGIN)
 
@@ -95,6 +100,10 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
         """Return the raw payloads of the last scan, for diagnostics."""
         return {key: item.raw for key, item in (self.data or {}).items()}
 
+    def last_error(self, key: str) -> tuple[str | None, str] | None:
+        """Return payload and message of the last failure for an item."""
+        return self._last_errors.get(key)
+
     def async_set_value(self, key: str, value: Any) -> None:
         """Store a value written by the user and tell the entities about it."""
         data = dict(self.data or {})
@@ -121,7 +130,7 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
         be indistinguishable from a fresh one.
         """
         data: dict[str, ItemValue] = {}
-        failures: list[str] = []
+        errors: dict[str, tuple[str | None, str]] = {}
         deadline = monotonic() + self._budget
 
         for item in self._readable:
@@ -130,42 +139,83 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
                     "Scan budget of %s s exhausted after %s of %s items; "
                     "consider a longer scan interval",
                     self._budget,
-                    len(data) + len(failures),
+                    len(data) + len(errors),
                     len(self._readable),
                 )
                 break
+            rest_object = RestObject(self._rest_api, item)
+            raw: str | None = None
             try:
-                data[item.key] = await RestObject(self._rest_api, item).async_read()
+                raw = await rest_object.async_read_raw()
+                data[item.key] = ItemValue(rest_object.decode(raw), raw)
             except (JudoApiError, JudoDecodeError) as err:
-                failures.append(f"{item.translation_key}: {err}")
+                # Keep the payload: for a decode failure it is the only thing
+                # that says why, and it is what diagnostics reports.
+                errors[item.key] = (raw, str(err))
+
+        self._last_errors = errors
 
         if not data:
             raise UpdateFailed(
                 "No value could be read from the Judo device: "
-                + ("; ".join(failures) if failures else "no items polled")
+                + (
+                    "; ".join(message for _, message in errors.values())
+                    if errors
+                    else "no items polled"
+                )
             )
-        if failures:
+        if errors:
             _LOGGER.warning(
                 "%s of %s items could not be read: %s",
-                len(failures),
+                len(errors),
                 len(self._readable),
-                "; ".join(failures),
+                "; ".join(message for _, message in errors.values()),
             )
+
+        await self._async_refresh_device_info()
         return data
 
-    async def async_update_device_info(self) -> None:
-        """Build the device registry info once, after the first scan.
+    async def _async_refresh_device_info(self) -> None:
+        """Fill in device info that the first scan could not provide.
 
-        This used to run on every update cycle, fetching the whole translation
-        catalogue each time, although device info is only read when an entity
-        is added.
+        Device info is read once, when an entity is added. If the device type
+        failed to decode back then, the device would be stuck on the fallback
+        name for good, so once the values do arrive they are pushed into the
+        device registry.
         """
+        if self._device_info_complete():
+            return
+        await self.async_update_device_info()
+        if not self._device_info_complete():
+            return
+
+        fields = {
+            name: value
+            for name, value in self._cached_device_info.items()
+            if value is not None
+        }
+        registry = dr.async_get(self.hass)
+        for device in dr.async_entries_for_config_entry(
+            registry, self._config_entry.entry_id
+        ):
+            _LOGGER.debug("Updating device registry entry %s: %s", device.id, fields)
+            registry.async_update_device(device.id, **fields)
+
+    def _device_info_complete(self) -> bool:
+        """Return whether every device info field has a value."""
+        info = self._cached_device_info
+        return bool(info) and all(info.get(name) for name in ("sw_version", "model", "serial_number"))
+
+    async def async_update_device_info(self) -> None:
+        """Build the device registry info from the current values."""
         model = None
         device_type = self._value_by_translation_key("device_type")
         if device_type:
-            translations = await async_get_translations(
-                self.hass, self.hass.config.language, "entity", {CONST.DOMAIN}
-            )
+            if self._translations is None:
+                self._translations = await async_get_translations(
+                    self.hass, self.hass.config.language, "entity", {CONST.DOMAIN}
+                )
+            translations = self._translations
             key = (
                 f"component.{CONST.DOMAIN}.entity.sensor.device_type.state.{device_type}"
             )

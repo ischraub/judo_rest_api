@@ -39,21 +39,35 @@ class ItemValue:
     raw: str
 
 
-def _hex_field(raw: str, index: int, num_bytes: int, what: str) -> str:
-    """Cut a field out of the raw hex payload, big-endian, byte order unchanged.
+def _hex_field(
+    raw: str, index: int, num_bytes: int, what: str, exact: bool = True
+) -> str:
+    """Cut a field out of the raw hex payload, byte order unchanged.
 
-    The device sometimes answers with a truncated payload. Slicing that
-    silently drops the *most significant* bytes once the result is reversed to
-    little-endian, which turns e.g. 1057.516 m3 into 8.940 m3 without any
-    error. So the length is checked before anything is cut.
+    For a numeric field the length must match exactly. A truncated payload
+    sliced short drops the *most significant* bytes once the result is reversed
+    to little-endian, which turns e.g. 1057.516 m3 into 8.940 m3 with no error
+    at all, so a short answer has to fail instead.
+
+    Text is different: the device answers some commands with fewer bytes than
+    the maximum (the service contact is declared as 16 bytes but comes back as
+    short as it is), and a short string is simply a short string. Those fields
+    pass exact=False and take whatever is there.
     """
-    needed = (index + num_bytes) * 2
-    if len(raw) < needed:
+    start = index * 2
+    needed = start + num_bytes * 2
+    if exact and len(raw) < needed:
         raise JudoDecodeError(
             f"{what}: payload too short, need {needed} hex chars for "
             f"{num_bytes} byte(s) at offset {index}, got {len(raw)} ({raw!r})"
         )
-    field = raw[index * 2 : needed]
+    if len(raw) <= start:
+        raise JudoDecodeError(
+            f"{what}: payload {raw!r} has nothing at offset {index}"
+        )
+    field = raw[start:needed]
+    if len(field) % 2:  # an odd number of hex chars is never a whole byte
+        field = field[:-1]
     try:
         bytes.fromhex(field)
     except ValueError as err:
@@ -133,11 +147,21 @@ def decode_item(rest_item: RestItem, raw: str, divider: float = 1) -> Any:
     plausible looking wrong number.
     """
     what = rest_item.translation_key
-    field = _hex_field(raw, rest_item.read_index, rest_item.read_bytes, what)
+    field = _hex_field(
+        raw,
+        rest_item.read_index,
+        rest_item.read_bytes,
+        what,
+        exact=rest_item.format is not FORMATS.TEXT,
+    )
 
     match rest_item.format:
         case FORMATS.NUMBER:
             return _to_int(field, rest_item.read_endian) / divider
+        case FORMATS.SERIAL:
+            # An identifier, not a measurement: a string, so it can never be
+            # rendered as "2825589796.0" or recorded as a statistic.
+            return str(_to_int(field, rest_item.read_endian))
         case FORMATS.STATUS:
             number = _to_int(field, rest_item.read_endian)
             key = rest_item.get_translation_key_from_number(number)
@@ -282,12 +306,24 @@ class RestObject:
         """format str message as hex buffer to be sent to REST APPI"""
         return self.order_hex_buffer(text.encode("utf-8").hex(), flip)
 
-    async def async_read(self) -> ItemValue:
-        """Read and decode this item. Raises on any problem."""
+    async def async_read_raw(self) -> str:
+        """Fetch the raw payload of this item without decoding it."""
         if self._rest_item.format is FORMATS.BUTTON:
             raise JudoDecodeError(f"{self._rest_item.translation_key} is write only")
-        raw = await self._rest_api.async_get(self._rest_item.address_read)
-        return ItemValue(decode_item(self._rest_item, raw, self._divider), raw)
+        return await self._rest_api.async_get(self._rest_item.address_read)
+
+    def decode(self, raw: str):
+        """Decode a raw payload for this item."""
+        return decode_item(self._rest_item, raw, self._divider)
+
+    async def async_read(self) -> ItemValue:
+        """Read and decode this item. Raises on any problem.
+
+        Reading and decoding are also available separately, so a decode
+        failure can still report the payload it choked on.
+        """
+        raw = await self.async_read_raw()
+        return ItemValue(self.decode(raw), raw)
 
     async def async_press(self) -> None:
         """Trigger a button item."""

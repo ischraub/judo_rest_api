@@ -75,6 +75,7 @@ class MyEntity(CoordinatorEntity[MyCoordinator]):
                 | FORMATS.TEXT
                 | FORMATS.DATE
                 | FORMATS.SW_VERSION
+                | FORMATS.SERIAL
                 | FORMATS.BUTTON
             ):
                 # Not numeric: no unit, no state class, no min/max.
@@ -116,7 +117,7 @@ class MyEntity(CoordinatorEntity[MyCoordinator]):
         if device_info_values.get("model"):
             model = str(device_info_values["model"])
         if device_info_values.get("serial_number"):
-            serial_number = str(int(device_info_values["serial_number"]))
+            serial_number = str(device_info_values["serial_number"])
 
         return {
             "identifiers": {(CONST.DOMAIN, self._dev_device)},
