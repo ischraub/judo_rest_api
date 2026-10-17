@@ -113,28 +113,58 @@ def date_suffix(day: datetime.date) -> str:
 
 
 def describe_scene(raw: str) -> str:
-    """Spell out the fields of a scene as command 37 returns them."""
+    """Spell out the fields of a scene as command 37 returns them.
+
+    Derived from the answers of a real i-soft PRO, because the document's
+    field list does not match them: it begins with a scene number that the
+    answer does not contain, and lists ten fixed bytes where there are eight.
+    What is left lines up exactly - every scene's content matches its name,
+    and byte 1 is byte 0 converted from degrees dH to degrees f (x 1.7848).
+
+    8 fixed bytes, then either 5 bytes of weekly schedule or, for "Urlaub
+    geniessen", 8 bytes of start and stop date.
+    """
     try:
         data = bytes.fromhex(raw)
     except ValueError:
         return "not hex"
-    if len(data) < 9:
-        return f"only {len(data)} bytes, expected at least 9"
-    names = [
-        "Szenennummer",
-        "Wasserhaerte dH",
-        "Wasserhaerte f/mmol/ppm",
-        "Leckageschutz",
-        "Entnahmemenge",
-        "Durchflussmenge",
-        "Entnahmezeit",
-        "Favorit",
-        "Zeitsteuerung",
+    if len(data) < 8:
+        return f"only {len(data)} bytes, expected at least 8"
+
+    hardness = "unchanged (bypass)" if data[0] == 0xFF else f"{data[0]} dH / {data[1]} f"
+    flags = [
+        name
+        for name, value in (
+            ("Leckageschutz", data[2]),
+            ("Entnahmemenge", data[3]),
+            ("Durchfluss", data[4]),
+            ("Entnahmezeit", data[5]),
+            ("Favorit", data[6]),
+            ("Zeitsteuerung", data[7]),
+        )
+        if value
     ]
-    out = [f"{name}={value}" for name, value in zip(names, data[:9])]
-    rest = data[9:]
-    if rest:
-        out.append(f"Zeit/Datum-Teil={rest.hex()}")
+    out = [f"Haerte={hardness}", "aktiv=" + (", ".join(flags) if flags else "nichts")]
+
+    rest = data[8:]
+    if len(rest) >= 8:
+        # "Urlaub geniessen": start and stop date instead of a weekly schedule
+        start_year = int.from_bytes(rest[0:2], "little")
+        stop_year = int.from_bytes(rest[4:6], "little")
+        out.append(
+            f"Urlaub={rest[3]:02d}.{rest[2]:02d}.{start_year}"
+            f"-{rest[7]:02d}.{rest[6]:02d}.{stop_year}"
+        )
+    elif len(rest) >= 5:
+        days = [
+            name
+            for bit, name in enumerate(("So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"))
+            if rest[0] & (1 << bit)
+        ]
+        out.append(
+            f"Plan={'+'.join(days) if days else 'keine Tage'} "
+            f"{rest[1]:02d}:{rest[2]:02d}-{rest[3]:02d}:{rest[4]:02d}"
+        )
     return ", ".join(out)
 
 

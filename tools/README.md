@@ -90,14 +90,39 @@ copied, not measured. On a real i-soft PRO the counter is **big-endian**:
 date the same device reports, while little-endian would give 2306 days for a
 device commissioned in 2025.
 
+### Scene layout, as a device actually answers it
+
+The document's field list for command 37 does not match what comes back: it
+begins with a scene number the answer does not contain, and lists ten fixed
+bytes where there are eight. What is left lines up exactly.
+
+| Byte | Meaning |
+|---|---|
+| 0 | Target hardness in dH, `FF` = unchanged (bypass) |
+| 1 | The same hardness in degrees f (byte 0 x 1.7848) |
+| 2 | Leakage protection active |
+| 3 | Withdrawal volume monitored |
+| 4 | Flow rate monitored |
+| 5 | Withdrawal time monitored |
+| 6 | Favourite |
+| 7 | Time control on/off |
+| 8..12 | Weekly schedule: active days (bit 0 = Sunday), start HH MM, end HH MM |
+| 8..15 | Only for "Urlaub geniessen": start year (2 byte little-endian), month, day, stop year, month, day |
+
+So a normal scene answers with 13 bytes and "Urlaub geniessen" with 16.
+
+Scene numbering is **0-based** on the wire, and the document's list order is
+the wire order. Three independent checks on one device: scene 3 is the only
+one with a date block, and the document says that block belongs to "Urlaub
+geniessen"; scene 7 "Heizung befuellen" asks for 0 dH, fully softened, which
+is what a heating system wants; scenes 2 and 6, "Garten bewaessern" and "Pool
+befuellen", are set to bypass, which is what a garden and a pool want.
+
 ### Open points for the scenes
 
 1. Its example for command 36 (`/api/rest/36000200200`) has an odd number of
    hex characters. `3600` + `02` + `0200` is the consistent form.
-2. Scene numbering is given as "1...10" for commands 37 and 38 but the list
-   itself starts at "Szene 0" and ends at "Szene A", so it is unclear whether
-   the wire value is 0-based or 1-based. Reading `370000` through `37000A`
-   settles it.
+2. ~~Scene numbering 0-based or 1-based~~ - settled, it is 0-based, see above.
 
 ### Reference payloads
 
