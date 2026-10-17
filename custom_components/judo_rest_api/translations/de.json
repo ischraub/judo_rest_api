@@ -19,6 +19,10 @@
           "port": "HTTP Port",
           "username": "Benutzername",
           "password": "Passwort"
+        },
+        "data_description": {
+          "username": "Werkseinstellung: admin",
+          "password": "Werkseinstellung: Connectivity. Das am Connectivity-Modul gesetzte Passwort eingeben."
         }
       },
       "reconfigure": {
@@ -29,6 +33,9 @@
           "port": "HTTP Port",
           "username": "Benutzername",
           "password": "Passwort"
+        },
+        "data_description": {
+          "password": "Mit dem gespeicherten Passwort vorbelegt. Unverändert lassen, um es zu behalten."
         }
       }
     }

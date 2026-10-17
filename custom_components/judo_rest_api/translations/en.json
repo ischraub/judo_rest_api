@@ -19,6 +19,10 @@
           "port": "HTTP Port",
           "username": "User name",
           "password": "Password"
+        },
+        "data_description": {
+          "username": "Factory setting: admin",
+          "password": "Factory setting: Connectivity. Enter the password set on the connectivity module."
         }
       },
       "reconfigure": {
@@ -29,6 +33,9 @@
           "port": "HTTP Port",
           "username": "User name",
           "password": "Password"
+        },
+        "data_description": {
+          "password": "Pre-filled with the stored password. Leave it as it is to keep it."
         }
       }
     }

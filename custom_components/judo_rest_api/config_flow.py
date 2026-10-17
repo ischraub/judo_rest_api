@@ -73,7 +73,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=CONST.DOMAIN):  # pylint: dis
                 vol.Required(schema=CONF.HOST): str,
                 vol.Optional(schema=CONF.PORT, default="80"): cv.port,
                 vol.Optional(schema=CONF.USERNAME, default="admin"): str,
-                vol.Optional(schema=CONF.PASSWORD, default="Connectivity"): str,
+                # No default for the password. Pre-filling the factory setting
+                # means a user who set their own password on the module and
+                # clicks through the form silently stores "Connectivity" - the
+                # entry then fails with 401 and the cause is invisible. The
+                # factory setting is offered as a hint under the field instead.
+                vol.Required(schema=CONF.PASSWORD): str,
                 vol.Optional(schema=CONF.DEVICE_POSTFIX, default=""): str,
                 vol.Optional(
                     schema=CONF.SCAN_INTERVAL, default=int(CONST.SCAN_INTERVAL)

@@ -17,7 +17,9 @@ from .configentry import MyConfigEntry
 from .const import CONF
 from .jdconst import DEVICELISTS
 
-TO_REDACT = {CONF.USERNAME, CONF.PASSWORD}
+# Only the password is a secret. The user name is not, and a wrong one is
+# just as invisible as a wrong password was until it shows up here.
+TO_REDACT = {CONF.PASSWORD}
 
 
 async def async_get_config_entry_diagnostics(

@@ -1,3 +1,7 @@
+# Version 1.1.7
+* The password field in the setup dialog no longer pre-fills the factory setting. Someone who set their own password on the connectivity module and clicks through the form used to store "Connectivity" silently; the entry then fails with 401 and nothing says why. The field is required now, and the factory setting is offered as a hint under it instead. The reconfigure dialog keeps pre-filling the stored password - a password the user set must never be replaced by a default.
+* Diagnostics no longer redacts the user name. It is not a secret, and a wrong one was just as invisible as a wrong password.
+
 # Version 1.1.6
 * Reverts the re-authentication prompt from 1.1.5. Credentials are entered once when the integration is set up and stay in force until the user changes them through the reconfigure dialog; the integration must not ask for them again because the device had a bad night. A transient 401 - the module answered one whole nightly scan with 401 and was fine afterwards - would have pushed a credentials dialog at a password that was never wrong.
 * What stays from 1.1.5 is the part that was actually useful: a 401 says so. The setup error now reads "Judo device refused the configured credentials" instead of "Cannot reach Judo device", which no longer sends you looking for a network problem. The entry keeps retrying like after any other failure.
