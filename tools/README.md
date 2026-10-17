@@ -12,6 +12,40 @@ to check a payload layout against a real device before changing the decoding in
 python3 tools/judo_rest_probe.py 192.168.1.42
 ```
 
+## Scenes (i-soft PRO family only)
+
+Device types 0x58, 0x4b and 0x4c know "Wasserszenen", page 2 of the API
+document. They are not in the integration yet.
+
+| Command | Length | Meaning |
+|---|---|---|
+| `36` | 3 byte | Activate a scene now: scene number, then duration as HH MM |
+| `37` | 1 byte in | Read a scene back |
+| `37` | full payload | Write/edit a scene |
+| `38` | 1 byte | Reset a scene to its factory setting |
+
+Scene numbers: 0 Alltag meistern, 1 Koerper pflegen, 2 Garten bewaessern,
+3 Urlaub geniessen, 4 Waesche waschen, 5 Hochdruckreinigen, 6 Pool befuellen,
+7 Heizung befuellen, 8-A Custom 1-3.
+
+Durations listed for command 36: `000F` 15 min, `001E` 30 min, `002D` 45 min,
+`0100` 1 h, `0200` 2 h, `0600` 6 h, `0C00` 12 h, `FFFF` unlimited.
+
+Read them back without changing anything:
+
+```
+python3 tools/judo_rest_probe.py <ip> -p <password> --scenes
+```
+
+Two things the document leaves open and that a device has to settle before
+this can go into the integration:
+
+1. Its example for command 36 (`/api/rest/36000200200`) has an odd number of
+   hex characters. `3600` + `02` + `0200` would be the consistent form.
+2. Scene numbering is given as "1...10" for commands 37 and 38 but the list
+   itself starts at "Szene 0" and ends at "Szene A", so it is unclear whether
+   the wire value is 0-based or 1-based.
+
 ### Reference payloads
 
 Captured from two devices and used to verify the decoding. The byte order of
