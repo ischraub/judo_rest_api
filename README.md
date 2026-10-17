@@ -1,3 +1,6 @@
+# Version 1.3.2
+* `hacs.json` sets `hide_default_branch`, so HACS can only track releases and never the `main` branch. A repository that offers both can end up comparing the installed release against the branch head, which makes the update check look broken.
+
 # Version 1.3.1
 * Fixes a regression in 1.3.0: the water scene select went unavailable on device software older than 1.5.31, which took the control away entirely. Activating a scene does not depend on reading one, so the select stays operable and only the shown active scene stays unknown until the firmware supports command 69.
 * The scene duration is named so that it sorts directly below the scene in the controls.
