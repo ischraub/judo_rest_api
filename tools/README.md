@@ -17,12 +17,17 @@ python3 tools/judo_rest_probe.py 192.168.1.42
 Device types 0x58, 0x4b and 0x4c know "Wasserszenen", page 2 of the API
 document. They are not in the integration yet.
 
-| Command | Length | Meaning |
-|---|---|---|
-| `36` | 3 byte | Activate a scene now: scene number, then duration as HH MM |
-| `37` | 1 byte in | Read a scene back |
-| `37` | full payload | Write/edit a scene |
-| `38` | 1 byte | Reset a scene to its factory setting |
+Every command on this API is `<command byte><00><data>`: `/api/rest/380001`
+resets scene 1, `/api/rest/570014` sets the salt warning to 20 days. All ten
+examples in the document follow it. Putting the data where that fixed `00`
+belongs gets a `400 Bad Request` back.
+
+| URL | Meaning |
+|---|---|
+| `3600` + scene + duration | Activate a scene now (3 data bytes) |
+| `3700` + scene | Read a scene back (1 data byte) |
+| `3700` + full payload | Write/edit a scene |
+| `3800` + scene | Reset a scene to its factory setting |
 
 Scene numbers: 0 Alltag meistern, 1 Koerper pflegen, 2 Garten bewaessern,
 3 Urlaub geniessen, 4 Waesche waschen, 5 Hochdruckreinigen, 6 Pool befuellen,
@@ -42,6 +47,13 @@ Read the scenes back without changing anything:
 ```
 python3 tools/judo_rest_probe.py <ip> -p <password> --scenes
 ```
+
+The module serves one request at a time and starts refusing or resetting
+connections when they arrive back to back: a run of 22 commands made it drop
+several, including ones that had answered fine moments earlier. The tool
+therefore waits a second before each request (`--delay`) and retries a dropped
+connection once. This is the same reason the integration serialises every call
+through a lock.
 
 ### Confirmed against the Judo app
 
@@ -81,10 +93,11 @@ device commissioned in 2025.
 ### Open points for the scenes
 
 1. Its example for command 36 (`/api/rest/36000200200`) has an odd number of
-   hex characters. `3600` + `02` + `0200` would be the consistent form.
+   hex characters. `3600` + `02` + `0200` is the consistent form.
 2. Scene numbering is given as "1...10" for commands 37 and 38 but the list
    itself starts at "Szene 0" and ends at "Szene A", so it is unclear whether
-   the wire value is 0-based or 1-based.
+   the wire value is 0-based or 1-based. Reading `370000` through `37000A`
+   settles it.
 
 ### Reference payloads
 

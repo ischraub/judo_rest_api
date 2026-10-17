@@ -17,11 +17,16 @@ import datetime
 import http.client
 import json
 import sys
+import time
 import urllib.error
 import urllib.request
 
 # Command codes as documented in
 # https://judo.eu/app/uploads/2024/11/API-KOMMANDOZEILEN.pdf
+#
+# Every command is <command byte><00><data>: /api/rest/380001 resets scene 1,
+# /api/rest/570014 sets the salt warning to 20 days. Sending the data in place
+# of that fixed 00 gets a 400 back.
 #
 # Scenes exist on the i-soft PRO family (device type 0x58, 0x4b, 0x4c), page 2
 # of that document. Command 37 with only a scene number reads a scene back;
@@ -77,13 +82,29 @@ FETCH_ERRORS = (
 )
 
 
-def fetch(base_url: str, command: str, auth_header: str, timeout: float) -> str:
-    """Run one command and return its raw hex payload."""
+def fetch(
+    base_url: str, command: str, auth_header: str, timeout: float, delay: float = 0.0
+) -> str:
+    """Run one command and return its raw hex payload.
+
+    The module serves one request at a time and starts refusing or resetting
+    connections when they arrive back to back - a run of 22 commands made it
+    drop several, including ones that had answered fine moments earlier. So
+    each call waits first, and a dropped connection is tried once more.
+    """
     request = urllib.request.Request(
         base_url + command, headers={"Authorization": auth_header}
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
-        return json.loads(response.read().decode())["data"]
+    for attempt in range(2):
+        if delay:
+            time.sleep(delay)
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
+                return json.loads(response.read().decode())["data"]
+        except (urllib.error.URLError, OSError, http.client.HTTPException):
+            if attempt:
+                raise
+    raise RuntimeError("unreachable")
 
 
 def date_suffix(day: datetime.date) -> str:
@@ -117,13 +138,15 @@ def describe_scene(raw: str) -> str:
     return ", ".join(out)
 
 
-def read_scenes(base_url: str, auth_header: str, timeout: float) -> None:
+def read_scenes(
+    base_url: str, auth_header: str, timeout: float, delay: float
+) -> None:
     """Read every scene back. Read only: it sends the scene number alone."""
     print("\nSzenen (Kommando 37, nur lesend):")
     for number, name in SCENES.items():
-        command = f"37{number:02X}"
+        command = f"3700{number:02X}"
         try:
-            data = fetch(base_url, command, auth_header, timeout)
+            data = fetch(base_url, command, auth_header, timeout, delay)
         except FETCH_ERRORS as err:
             print(f"  {number:X} {name:<20} {command}  !! {err}")
             continue
@@ -139,6 +162,14 @@ def main() -> int:
     parser.add_argument("-u", "--username", default="admin")
     parser.add_argument("-p", "--password", default="Connectivity")
     parser.add_argument("-t", "--timeout", default=10.0, type=float)
+    parser.add_argument(
+        "-d",
+        "--delay",
+        default=1.0,
+        type=float,
+        help="seconds to wait before each request (the module drops "
+        "connections when they arrive back to back)",
+    )
     parser.add_argument(
         "--statistics",
         action="store_true",
@@ -165,14 +196,14 @@ def main() -> int:
     width = max(len(name) for name in queries)
     for name, command in queries.items():
         try:
-            data = fetch(base_url, command, auth_header, args.timeout)
+            data = fetch(base_url, command, auth_header, args.timeout, args.delay)
         except FETCH_ERRORS as err:
             print(f"{name:{width}}  {command}  !! {err}")
             continue
         print(f"{name:{width}}  {command}  {data}")
 
     if args.scenes:
-        read_scenes(base_url, auth_header, args.timeout)
+        read_scenes(base_url, auth_header, args.timeout, args.delay)
     return 0
 
 
