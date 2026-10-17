@@ -1,3 +1,12 @@
+# Version 1.3.0
+Built on the **current** API command list, `https://judo.eu/ftp-upload/download/REST-API/RESTAPI_Kommandos.pdf`, linked from https://judo.eu/produkte/api/. The November 2024 PDF this integration was written against is outdated and misses command 69 entirely.
+
+* **The active water scene can be read** - command `69` returns a 16 byte device status. The scene select now shows what the device reports instead of what was last sent from here. **Requires device software newer than 1.5.31**; on older firmware the entity stays unavailable, because the API offers no other way to ask and showing the last command would claim more than it knows.
+* Two new sensors out of the same answer: **current water flow** in L/h and **water temperature**.
+* The scene duration is no longer a configuration entity, so it sits next to the scene in the controls.
+* HTTP **429** is retried. Judo documents it as "device control did not reply within 1.5 s" and answers with `Retry-After: 2`, which this now waits.
+* Each read command is fetched **once per scan**, not once per entity. Four entities come out of commands `5600` and `6900`, and this device drops connections when requests arrive in quick succession.
+
 # Version 1.2.0
 Water scenes for the i-soft PRO family (device types 0x58, 0x4b, 0x4c).
 

@@ -167,10 +167,11 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
         """
         data: dict[str, ItemValue] = {}
         errors: dict[str, tuple[str | None, str]] = {}
+        raw_cache: dict[str, tuple[str | None, JudoApiError | None]] = {}
         deadline = monotonic() + self._budget
 
         for item in self._readable:
-            if monotonic() > deadline:
+            if monotonic() > deadline and item.address_read not in raw_cache:
                 _LOGGER.warning(
                     "Scan budget of %s s exhausted after %s of %s items; "
                     "consider a longer scan interval",
@@ -182,7 +183,22 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
             rest_object = RestObject(self._rest_api, item)
             raw: str | None = None
             try:
-                raw = await rest_object.async_read_raw()
+                # One command often carries several items - 6900 alone holds
+                # the active scene, the flow rate and the temperature - and
+                # this device struggles with request volume, so each address
+                # is fetched once per scan.
+                if item.address_read in raw_cache:
+                    cached_raw, cached_error = raw_cache[item.address_read]
+                    if cached_error is not None:
+                        raise cached_error
+                    raw = cached_raw
+                else:
+                    try:
+                        raw = await rest_object.async_read_raw()
+                    except JudoApiError as err:
+                        raw_cache[item.address_read] = (None, err)
+                        raise
+                    raw_cache[item.address_read] = (raw, None)
                 value = rest_object.decode(raw)
                 previous = (self.data or {}).get(item.key)
                 if previous is not None and self._is_noise(item, previous.value, value):

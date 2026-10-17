@@ -187,6 +187,12 @@
       },
       "operating_time": {
         "name": "Operating time"
+      },
+      "water_flow": {
+        "name": "Current water flow"
+      },
+      "water_temperature": {
+        "name": "Water temperature"
       }
     }
   },

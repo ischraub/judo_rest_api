@@ -58,6 +58,8 @@ COMMANDS = {
     "Salzreichweite": "5700",
     "Gesamtwassermenge": "2800",
     "Weichwassermenge": "2900",
+    # Needs device software newer than 1.5.31 on the i-soft PRO family.
+    "Geraetestatus": "6900",
 }
 
 # The statistics commands need a date appended: day, month, year as 2 bytes
@@ -168,6 +170,25 @@ def describe_scene(raw: str) -> str:
     return ", ".join(out)
 
 
+def describe_status(raw: str) -> str:
+    """Spell out the 16 byte device status of command 6900."""
+    try:
+        data = bytes.fromhex(raw)
+    except ValueError:
+        return "not hex"
+    if len(data) < 12:
+        return f"only {len(data)} bytes, expected 16 (needs device SW > 1.5.31)"
+    scene = SCENES.get(data[0], f"unknown 0x{data[0]:02X}")
+    return (
+        f"aktive Szene={data[0]:X} {scene}, Optionen=0x{data[1]:02X}, "
+        f"Leckageschutz=0x{data[2]:02X}, Leckagegrund=0x{data[3]:02X}, "
+        f"Durchfluss={int.from_bytes(data[4:6], 'little')} l/h, "
+        f"Dauer={int.from_bytes(data[6:8], 'little')} min, "
+        f"Menge={int.from_bytes(data[8:10], 'little')} l, "
+        f"Temperatur={int.from_bytes(data[10:12], 'little')} C"
+    )
+
+
 def read_scenes(
     base_url: str, auth_header: str, timeout: float, delay: float
 ) -> None:
@@ -231,6 +252,8 @@ def main() -> int:
             print(f"{name:{width}}  {command}  !! {err}")
             continue
         print(f"{name:{width}}  {command}  {data}")
+        if command == "6900":
+            print(f"{'':{width}}  {'':4}  {describe_status(data)}")
 
     if args.scenes:
         read_scenes(base_url, auth_header, args.timeout, args.delay)

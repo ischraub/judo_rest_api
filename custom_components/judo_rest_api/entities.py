@@ -300,13 +300,14 @@ class MySceneEntity(MyEntity, SelectEntity):  # pylint: disable=W0223
         self._attr_options = [item.translation_key for item in rest_item.resultlist or []]
 
     @property
-    def available(self) -> bool:
-        """Follow the device, not a reading: there is nothing to read."""
-        return self.coordinator.last_update_success
-
-    @property
     def current_option(self):
-        """Return the scene last activated from here."""
+        """Return the scene the device reports as active.
+
+        Read from command 6900, which needs device software newer than 1.5.31.
+        On older firmware the item has no value and the entity is unavailable:
+        the API has no other way to ask which scene is running, and showing
+        the scene last activated from here would claim more than it knows.
+        """
         value = self._item_value
         return value if value in self._attr_options else None
 
@@ -338,4 +339,4 @@ class MySceneEntity(MyEntity, SelectEntity):  # pylint: disable=W0223
                 f"Could not activate {option}: {err}"
             ) from err
         _LOGGER.info("Activated water scene %s for 0x%04X", option, duration)
-        self._coordinator.async_set_value(self._rest_item.key, option)
+        await self._coordinator.async_request_refresh()

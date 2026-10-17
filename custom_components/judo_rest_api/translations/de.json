@@ -187,6 +187,12 @@
       },
       "operating_time": {
         "name": "Betriebszeit"
+      },
+      "water_flow": {
+        "name": "Aktueller Wasserdurchfluss"
+      },
+      "water_temperature": {
+        "name": "Wassertemperatur"
       }
     }
   },

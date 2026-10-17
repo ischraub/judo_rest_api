@@ -23,8 +23,10 @@ from .items import RestItem
 _LOGGER = logging.getLogger(__name__)
 
 
-# Statuses worth a second attempt rather than an immediate failure.
-RETRYABLE_STATUS = frozenset({500, 502, 503, 504})
+# Statuses worth a second attempt rather than an immediate failure. 429 is
+# documented by Judo: the module answers it with "Retry-After: 2" when the
+# device control does not reply within 1.5 s.
+RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 # Statuses that mean the credentials were refused.
 AUTH_STATUS = frozenset({401, 403})
 
@@ -187,7 +189,7 @@ def decode_item(rest_item: RestItem, raw: str, divider: float = 1) -> Any:
             # An identifier, not a measurement: a string, so it can never be
             # rendered as "2825589796.0" or recorded as a statistic.
             return str(_to_int(field, rest_item.read_endian))
-        case FORMATS.STATUS:
+        case FORMATS.STATUS | FORMATS.SCENE:
             number = _to_int(field, rest_item.read_endian)
             key = rest_item.get_translation_key_from_number(number)
             if key is None:
@@ -235,6 +237,13 @@ class RestAPI:
         """Run one REST command once and return the parsed answer."""
         try:
             response = await session.get(url, auth=self._auth, timeout=self._timeout)
+            if response.status == 429:
+                # Judo documents a Retry-After of 2 seconds for this.
+                raise JudoApiError(
+                    f"{command}: device busy (429)",
+                    status=429,
+                    retryable=True,
+                )
             if response.status != 200:
                 error = (
                     JudoAuthError
@@ -263,15 +272,17 @@ class RestAPI:
         session = async_get_clientsession(self._hass)
         async with self._lock:
             _LOGGER.debug("Send command %s", command)
+            delay = CONST.RETRY_DELAY
             for attempt in range(CONST.REQUEST_ATTEMPTS):
                 if attempt:
-                    await asyncio.sleep(CONST.RETRY_DELAY)
+                    await asyncio.sleep(delay)
                 try:
                     payload = await self._attempt(session, url, command)
                     break
                 except JudoApiError as err:
                     if not err.retryable or attempt == CONST.REQUEST_ATTEMPTS - 1:
                         raise
+                    delay = CONST.BUSY_RETRY_DELAY if err.status == 429 else CONST.RETRY_DELAY
                     _LOGGER.debug("Retrying %s after %s", command, err)
 
         if not isinstance(payload, dict) or "data" not in payload:

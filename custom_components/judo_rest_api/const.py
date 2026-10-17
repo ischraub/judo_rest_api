@@ -44,6 +44,8 @@ class MainConstants:
     REQUEST_ATTEMPTS = 2
     # Pause between those attempts.
     RETRY_DELAY = 1.0
+    # Judo documents "Retry-After: 2" for a 429.
+    BUSY_RETRY_DELAY = 2.0
     # Margin kept free at the end of a scan so the next one starts on time.
     SCAN_MARGIN = 5
 
