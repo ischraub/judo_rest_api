@@ -1,3 +1,11 @@
+# Version 1.1.8
+Two decoding corrections for the i-soft PRO family, checked against what the Judo app shows for the same device.
+
+* The software version has a numeric third component on this family. The third byte is a printable letter on an i-soft (`6b1502` reads 2.21k) but a number on an i-soft PRO (`0C0001` reads 1.0.12). 1.1.1 dropped the byte when it was not printable, so `110401` showed as "1.04" where the Judo app shows **1.4.17**. All three forms now decode correctly.
+* The device number is read big-endian. The i-soft PRO page of the API document is the only one whose example is not copy-pasted from another page, and `10D36F28` = 282292008 only works big-endian while every other page's example only works little-endian. Note this is not the alphanumeric "Geräte ID" the app shows - that is a different identifier, and neither reading of the number appears in it.
+
+Still open: the app reports an operating time of 783 days where the device's own counter reads 521 (big-endian) or 2306 (little-endian). 521 is the number of days since the commissioning date the same device reports, to the day; 783 would predate it. See `tools/README.md` for the experiment that settles the byte order.
+
 # Version 1.1.7
 * The password field in the setup dialog no longer pre-fills the factory setting. Someone who set their own password on the connectivity module and clicks through the form used to store "Connectivity" silently; the entry then fails with 401 and nothing says why. The field is required now, and the factory setting is offered as a hint under it instead. The reconfigure dialog keeps pre-filling the stored password - a password the user set must never be replaced by a default.
 * Diagnostics no longer redacts the user name. It is not a secret, and a wrong one was just as invisible as a wrong password.

@@ -110,18 +110,21 @@ def _decode_text(field: str) -> str:
 def _decode_sw_version(field: str) -> str:
     """Decode the 3 byte software version.
 
-    Layout is <letter> <minor> <major>, so reversed it reads major.minor+letter.
-    The first byte is not a printable letter on every firmware (an i-soft PRO
-    on 1.04 sends a non-printable byte there), and blindly decoding it put a
-    replacement glyph into the state, so it is only appended when printable.
+    Reversed the bytes read major, minor, then a third byte whose meaning
+    differs by device family. On an i-soft it is a printable letter and the
+    version reads "2.21k"; on an i-soft PRO it is a number and the version
+    reads "1.4.17", which is what the Judo app shows for the payload 110401.
+    Decoding it blindly as a character used to put a replacement glyph into
+    the state.
     """
     data = bytes.fromhex(field)[::-1]
     if len(data) < 2:
         raise JudoDecodeError(f"software version: expected 3 bytes, got {field!r}")
-    version = f"{data[0]}.{data[1]:02d}"
-    if len(data) > 2 and 0x21 <= data[2] <= 0x7E:
-        version += chr(data[2])
-    return version
+    if len(data) < 3:
+        return f"{data[0]}.{data[1]:02d}"
+    if 0x21 <= data[2] <= 0x7E:
+        return f"{data[0]}.{data[1]:02d}{chr(data[2])}"
+    return f"{data[0]}.{data[1]}.{data[2]}"
 
 
 def _decode_operating_time(field: str, endian: str) -> float:

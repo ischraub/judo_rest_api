@@ -232,7 +232,7 @@ PARAMS_MASS_REFILL: dict = {
 # fmt: off
 REST_SYS_ITEMS: list[RestItem] = [
     RestItem( address_read="FF00", read_bytes = 1, read_index=0, mformat=FORMATS.STATUS, mtype=TYPES.SENSOR, device=DEVICES.SYS, resultlist=UNIT_TYPE, params=PARAMS_INFO, translation_key="device_type", entity_category=EntityCategory.DIAGNOSTIC),
-    RestItem( address_read="0600", read_bytes = 4, read_index=0, mformat=FORMATS.SERIAL, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_SERIAL, translation_key="device_number", entity_category=EntityCategory.DIAGNOSTIC),
+    RestItem( address_read="0600", read_bytes = 4, read_index=0, read_endian="big", mformat=FORMATS.SERIAL, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_SERIAL, translation_key="device_number", entity_category=EntityCategory.DIAGNOSTIC),
     RestItem( address_read="0100", read_bytes = 3, read_index=0, mformat=FORMATS.SW_VERSION, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_INFO, translation_key="software_version", entity_category=EntityCategory.DIAGNOSTIC),
 
     RestItem( address_read="5100", read_bytes = 2, read_index=0, address_write="3000", write_bytes = 1, write_index=0, mformat=FORMATS.NUMBER, mtype=TYPES.NUMBER, device=DEVICES.SYS, params=PARAMS_GDH,translation_key="water_hardeness"),

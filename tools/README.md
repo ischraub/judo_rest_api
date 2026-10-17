@@ -43,6 +43,21 @@ Read the scenes back without changing anything:
 python3 tools/judo_rest_probe.py <ip> -p <password> --scenes
 ```
 
+### Confirmed against the Judo app
+
+For an i-soft PRO the app reports: software version 1.4.17, commissioning date
+13.05.2025, water total 36,492 m3 - all three match what the API returns and
+how it is decoded here. The app's "Geraete ID" (`03J053180005F6`) is NOT the
+device number of command `0600`: neither reading of `24146BA8` appears in it.
+
+The app reports an operating time of **783 days** where the counter in command
+`2500` reads 521 big-endian or 2306 little-endian, so it matches neither.
+521 is the number of days since the commissioning date the same device
+reports, to the day, and 783 would predate commissioning. To settle the byte
+order, read `2500` again N days later: if the device stores the counter
+big-endian the day bytes go `0209` -> `020C` after 3 days, if little-endian
+they go `0209` -> `0509`.
+
 ### What the document gets wrong for this family
 
 The i-soft PRO page (device types 0x58, 0x4b, 0x4c) is the only one whose
