@@ -1,3 +1,19 @@
+# Version 1.2.0
+Water scenes for the i-soft PRO family (device types 0x58, 0x4b, 0x4c).
+
+Two new entities:
+
+* **Water scene** - a select with the eleven scenes the device knows: everyday, body care, garden watering, holiday, laundry, pressure washing, filling the pool, filling the heating system and three custom ones. Selecting one activates it on the device.
+* **Scene duration** - 15/30/45 minutes, 1/2/6/12 hours or unlimited. It is not stored on the device, so it lives in Home Assistant and is restored after a restart. Default is 2 hours rather than unlimited, which would leave a bypass scene running with leakage protection off.
+
+The scene select is **write only**: the API has no command that reports which scene is running, so what it shows is the scene last activated from Home Assistant. It does not tell you whether that scene is still running, or whether somebody changed it at the device.
+
+Scene numbering was confirmed against a device rather than taken from the document, which contradicts itself about it. `tools/README.md` has the evidence and the field layout of the scene settings, which the probe tool can read out without changing anything:
+
+```
+python3 tools/judo_rest_probe.py <ip> -p <password> --scenes
+```
+
 # Version 1.1.8
 Two decoding corrections for the i-soft PRO family, checked against what the Judo app shows for the same device.
 

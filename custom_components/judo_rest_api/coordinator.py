@@ -270,12 +270,17 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
             "serial_number": self._value_by_translation_key("device_number"),
         }
 
-    def _value_by_translation_key(self, translation_key: str) -> Any:
-        """Look an item up by its translation key and return its value."""
+    def item_by_translation_key(self, translation_key: str) -> RestItem | None:
+        """Look an item up by its translation key."""
         for item in self._restitems:
             if item.translation_key == translation_key:
-                return self.value_of(item.key)
+                return item
         return None
+
+    def _value_by_translation_key(self, translation_key: str) -> Any:
+        """Look an item up by its translation key and return its value."""
+        item = self.item_by_translation_key(translation_key)
+        return self.value_of(item.key) if item else None
 
     def get_device_info_values(self) -> dict:
         """Get cached device info values."""

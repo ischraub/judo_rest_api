@@ -94,6 +94,38 @@ SALT_MASS: list[StatusItem] = [
     StatusItem(number=25, translation_key="mass_25kg"),
     StatusItem(number=50, translation_key="mass_50kg"),
 ]
+# Water scenes of the i-soft PRO family (device types 0x58, 0x4b, 0x4c).
+# Numbering is 0-based on the wire, confirmed by reading every scene back from
+# a device: scene 3 is the only one answering with a date block, which the API
+# document assigns to "Urlaub geniessen", and the hardness of each scene
+# matches its name (0 dH for the heating system, bypass for garden and pool).
+SCENE_LIST: list[StatusItem] = [
+    StatusItem(number=0x00, translation_key="scene_everyday"),
+    StatusItem(number=0x01, translation_key="scene_body_care"),
+    StatusItem(number=0x02, translation_key="scene_garden"),
+    StatusItem(number=0x03, translation_key="scene_holiday"),
+    StatusItem(number=0x04, translation_key="scene_laundry"),
+    StatusItem(number=0x05, translation_key="scene_pressure_washing"),
+    StatusItem(number=0x06, translation_key="scene_pool"),
+    StatusItem(number=0x07, translation_key="scene_heating"),
+    StatusItem(number=0x08, translation_key="scene_custom_1"),
+    StatusItem(number=0x09, translation_key="scene_custom_2"),
+    StatusItem(number=0x0A, translation_key="scene_custom_3"),
+]
+
+# Durations command 36 accepts, as listed in the API document. The two bytes
+# are hours and minutes and go on the wire unchanged, not little-endian.
+SCENE_DURATION_LIST: list[StatusItem] = [
+    StatusItem(number=0x000F, translation_key="duration_15_min"),
+    StatusItem(number=0x001E, translation_key="duration_30_min"),
+    StatusItem(number=0x002D, translation_key="duration_45_min"),
+    StatusItem(number=0x0100, translation_key="duration_1_h"),
+    StatusItem(number=0x0200, translation_key="duration_2_h"),
+    StatusItem(number=0x0600, translation_key="duration_6_h"),
+    StatusItem(number=0x0C00, translation_key="duration_12_h"),
+    StatusItem(number=0xFFFF, translation_key="duration_unlimited"),
+]
+
 #####################################################
 # Description of physical units via the status list #
 #####################################################
@@ -199,6 +231,19 @@ PARAMS_INFO: dict = {
     "icon": "mdi:information-box-outline"
 }
 
+PARAMS_SCENE: dict = {
+    "icon": "mdi:water-sync",
+    # Which item holds the duration to send along with the scene.
+    "duration_item": "water_scene_duration",
+}
+
+PARAMS_SCENE_DURATION: dict = {
+    "icon": "mdi:timer-sand",
+    # Used until the user picks one; two hours rather than "unlimited", which
+    # would leave a bypass scene running with leakage protection off.
+    "default": "duration_2_h",
+}
+
 # A serial number must not be a MEASUREMENT: it would be recorded as a
 # statistic and was rendered as "2.825.589.796,00".
 PARAMS_SERIAL: dict = {
@@ -252,6 +297,9 @@ REST_SYS_ITEMS: list[RestItem] = [
     RestItem(address_write="3C00", write_bytes = 0, write_index=0, mformat=FORMATS.BUTTON, mtype=TYPES.BUTTON, device=DEVICES.SYS, params=PARAMS_CLOSE, translation_key="leakage_protection_close"),
     RestItem(address_write="3D00", write_bytes = 0, write_index=0, mformat=FORMATS.BUTTON, mtype=TYPES.BUTTON, device=DEVICES.SYS, params=PARAMS_OPEN, translation_key="leakage_protection_open"),
     RestItem(address_write="350000", write_bytes = 0, write_index=0, mformat=FORMATS.BUTTON, mtype=TYPES.BUTTON, device=DEVICES.SYS, params=PARAMS_REG, translation_key="start_regeneration"),
+
+    RestItem(address_write="3600", write_bytes = 3, write_index=0, mformat=FORMATS.SCENE, mtype=TYPES.SCENE, device=DEVICES.SYS, resultlist=SCENE_LIST, params=PARAMS_SCENE, translation_key="water_scene"),
+    RestItem(mformat=FORMATS.SCENE_DURATION, mtype=TYPES.SELECT_LOCAL, device=DEVICES.SYS, resultlist=SCENE_DURATION_LIST, params=PARAMS_SCENE_DURATION, translation_key="water_scene_duration", entity_category=EntityCategory.CONFIG),
 
 #    RestItem(address_read="5600", read_bytes = 2, read_index=0,address_write="5600", write_bytes = 2, write_index=0, mformat=FORMATS.STATUS, mtype=TYPES.SELECT_NOIF, device=DEVICES.SYS, params= PARAMS_MASS_REFILL, resultlist=SALT_MASS, translation_key="salt_refill_mass"),
 ]

@@ -378,6 +378,22 @@ class RestObject:
         """Trigger a button item."""
         await self._rest_api.async_set(self._rest_item.address_write, "")
 
+    async def async_activate_scene(self, scene: int, duration: int) -> None:
+        """Activate a water scene for a duration.
+
+        Command 36 takes three data bytes: the scene number, then the duration
+        as hours and minutes. They go on the wire unchanged - unlike every
+        numeric setting in this API, which is little-endian - because the
+        document lists the durations as 0100 for one hour and 0200 for two.
+        """
+        if not 0x00 <= scene <= 0xFF:
+            raise JudoApiError(f"scene number {scene} out of range")
+        if not 0x0000 <= duration <= 0xFFFF:
+            raise JudoApiError(f"scene duration {duration} out of range")
+        await self._rest_api.async_set(
+            self._rest_item.address_write, f"{scene:02X}{duration:04X}"
+        )
+
     async def async_write(self, value) -> Any:
         """Write a value to the device and return what was written."""
         if self._rest_item.type == TYPES.SENSOR:

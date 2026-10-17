@@ -10,6 +10,7 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .configentry import MyConfigEntry
@@ -229,3 +230,112 @@ class MySelectEntity(MyEntity, SelectEntity):  # pylint: disable=W0223
                 f"Could not set {self._rest_item.translation_key}: {err}"
             ) from err
         await self._coordinator.async_request_refresh()
+
+
+class MyLocalSelectEntity(MyEntity, SelectEntity, RestoreEntity):  # pylint: disable=W0223
+    """A select whose value never leaves Home Assistant.
+
+    The scene duration is not stored on the device: command 36 takes it along
+    with the scene and nothing reads it back. So it lives here, and is
+    restored after a restart.
+    """
+
+    def __init__(
+        self,
+        config_entry: MyConfigEntry,
+        rest_item: RestItem,
+        coordinator: MyCoordinator,
+        idx,
+    ) -> None:
+        """Initialize MyLocalSelectEntity."""
+        super().__init__(config_entry, rest_item, coordinator, idx)
+        self._attr_options = [item.translation_key for item in rest_item.resultlist or []]
+        self._default = (rest_item.params or {}).get("default")
+
+    @property
+    def available(self) -> bool:
+        """Always available: this value does not come from the device."""
+        return True
+
+    @property
+    def current_option(self):
+        """Return the selected option."""
+        value = self._item_value
+        if value in self._attr_options:
+            return value
+        return self._default if self._default in self._attr_options else None
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the option that was selected before the restart."""
+        await super().async_added_to_hass()
+        if self._item_value is not None:
+            return
+        last_state = await self.async_get_last_state()
+        if last_state is not None and last_state.state in self._attr_options:
+            self._coordinator.async_set_value(self._rest_item.key, last_state.state)
+
+    async def async_select_option(self, option: str) -> None:
+        """Remember the option."""
+        self._coordinator.async_set_value(self._rest_item.key, option)
+
+
+class MySceneEntity(MyEntity, SelectEntity):  # pylint: disable=W0223
+    """Activate a water scene for a duration.
+
+    Write only. The API has no command that reports which scene is running, so
+    what this shows is the scene last activated from here, not a reading from
+    the device - it says nothing about whether that scene is still running or
+    was changed at the device itself.
+    """
+
+    def __init__(
+        self,
+        config_entry: MyConfigEntry,
+        rest_item: RestItem,
+        coordinator: MyCoordinator,
+        idx,
+    ) -> None:
+        """Initialize MySceneEntity."""
+        super().__init__(config_entry, rest_item, coordinator, idx)
+        self._attr_options = [item.translation_key for item in rest_item.resultlist or []]
+
+    @property
+    def available(self) -> bool:
+        """Follow the device, not a reading: there is nothing to read."""
+        return self.coordinator.last_update_success
+
+    @property
+    def current_option(self):
+        """Return the scene last activated from here."""
+        value = self._item_value
+        return value if value in self._attr_options else None
+
+    def _duration(self) -> int:
+        """Return the duration to send, from the sibling duration item."""
+        name = (self._rest_item.params or {}).get("duration_item")
+        item = self._coordinator.item_by_translation_key(name) if name else None
+        if item is None:
+            raise HomeAssistantError(f"No duration item {name!r} configured")
+        option = self._coordinator.value_of(item.key) or (item.params or {}).get(
+            "default"
+        )
+        number = item.get_number_from_translation_key(option)
+        if number is None or number < 0:
+            raise HomeAssistantError(f"Unknown scene duration {option!r}")
+        return number
+
+    async def async_select_option(self, option: str) -> None:
+        """Activate the scene on the device."""
+        scene = self._rest_item.get_number_from_translation_key(option)
+        if scene is None or scene < 0:
+            raise HomeAssistantError(f"Unknown water scene {option!r}")
+        duration = self._duration()
+        ro = RestObject(self._rest_api, self._rest_item)
+        try:
+            await ro.async_activate_scene(scene, duration)
+        except (JudoApiError, JudoDecodeError) as err:
+            raise HomeAssistantError(
+                f"Could not activate {option}: {err}"
+            ) from err
+        _LOGGER.info("Activated water scene %s for 0x%04X", option, duration)
+        self._coordinator.async_set_value(self._rest_item.key, option)

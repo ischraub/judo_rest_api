@@ -87,6 +87,35 @@
           "mass_25kg": "25 kg",
           "mass_50kg": "50 kg"
         }
+      },
+      "water_scene": {
+        "name": "Wasserszene",
+        "state": {
+          "scene_everyday": "Alltag meistern",
+          "scene_body_care": "Körper pflegen",
+          "scene_garden": "Garten bewässern",
+          "scene_holiday": "Urlaub genießen",
+          "scene_laundry": "Wäsche waschen",
+          "scene_pressure_washing": "Hochdruckreinigen",
+          "scene_pool": "Pool befüllen",
+          "scene_heating": "Heizung befüllen",
+          "scene_custom_1": "Eigene Szene 1",
+          "scene_custom_2": "Eigene Szene 2",
+          "scene_custom_3": "Eigene Szene 3"
+        }
+      },
+      "water_scene_duration": {
+        "name": "Szenendauer",
+        "state": {
+          "duration_15_min": "15 Minuten",
+          "duration_30_min": "30 Minuten",
+          "duration_45_min": "45 Minuten",
+          "duration_1_h": "1 Stunde",
+          "duration_2_h": "2 Stunden",
+          "duration_6_h": "6 Stunden",
+          "duration_12_h": "12 Stunden",
+          "duration_unlimited": "Unbegrenzt"
+        }
       }
     },
     "sensor": {

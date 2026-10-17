@@ -5,7 +5,14 @@ from .configentry import MyConfigEntry
 from .items import RestItem
 from .const import TYPES
 from .coordinator import MyCoordinator
-from .entities import MySensorEntity, MyNumberEntity, MyButtonEntity, MySelectEntity
+from .entities import (
+    MyButtonEntity,
+    MyLocalSelectEntity,
+    MyNumberEntity,
+    MySceneEntity,
+    MySelectEntity,
+    MySensorEntity,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,6 +53,14 @@ async def build_entity_list(
                 case TYPES.SELECT | TYPES.SELECT_NOIF:
                     entries.append(
                         MySelectEntity(config_entry, item, coordinator, index)
+                    )
+                case TYPES.SCENE:
+                    entries.append(
+                        MySceneEntity(config_entry, item, coordinator, index)
+                    )
+                case TYPES.SELECT_LOCAL:
+                    entries.append(
+                        MyLocalSelectEntity(config_entry, item, coordinator, index)
                     )
                 case TYPES.NUMBER:
                     entries.append(

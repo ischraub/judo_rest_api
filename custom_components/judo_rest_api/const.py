@@ -62,6 +62,8 @@ class FormatConstants:
     BUTTON = "Button"
     DATE = "Date"
     DURATION = "Duration"
+    SCENE = "Scene"
+    SCENE_DURATION = "SceneDuration"
     SW_VERSION = "SW_Version"
 
 
@@ -75,6 +77,11 @@ class TypeConstants:
     SENSOR = "Sensor"
     SELECT = "Select"
     SELECT_NOIF = "Select_noif"
+    # A scene is activated, never read: the API has no command that reports
+    # which scene is running.
+    SCENE = "Scene"
+    # A select whose value never leaves Home Assistant.
+    SELECT_LOCAL = "Select_local"
     NUMBER = "Number"
     NUMBER_RO = "Number_RO"
     BUTTON = "Button"
