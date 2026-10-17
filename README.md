@@ -1,3 +1,8 @@
+# Version 1.1.5
+* A 401 is now reported as what it is. Before, a refused password surfaced as "Cannot reach Judo device", which sends you looking for a network problem although the device is answering perfectly well. Setup now raises `ConfigEntryAuthFailed` and Home Assistant offers a re-authentication dialog to enter the credentials again.
+* During normal operation a re-authentication is only requested after three consecutive scans that failed authentication from start to finish, so a single transient 401 does not pop a dialog. A transient 401 is still retried once.
+* 1.1.4 also asked the base URL whenever a 401 came back, on the theory that it would make the module hand out a fresh session. That was speculative and tripled the requests of a failing scan, which risks driving a device that locks out after failed attempts further into it. Removed.
+
 # Version 1.1.4
 * A single REST call is retried once on a transient failure (timeout, connection error, HTTP 401/403/5xx). The connectivity module answered every command of one nightly scan with 401 and was fine again afterwards; without a retry that single hiccup took the whole scan down and put an error in the log. On 401 the base URL is touched first, which makes the module hand out a fresh session.
 * This repository now publishes GitHub releases. Without them HACS tracks the default branch and labels the installed version with the short commit SHA instead of a version number.

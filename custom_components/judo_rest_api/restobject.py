@@ -23,11 +23,10 @@ from .items import RestItem
 _LOGGER = logging.getLogger(__name__)
 
 
-# Conditions that are worth a second attempt rather than an immediate failure.
-# 401 is in here on purpose: the connectivity module answered every command of
-# a single scan with 401 once during the night and was fine again afterwards,
-# so a dropped session is far more likely than a wrong password.
-RETRYABLE_STATUS = frozenset({401, 403, 500, 502, 503, 504})
+# Statuses worth a second attempt rather than an immediate failure.
+RETRYABLE_STATUS = frozenset({500, 502, 503, 504})
+# Statuses that mean the credentials were refused.
+AUTH_STATUS = frozenset({401, 403})
 
 
 class JudoApiError(Exception):
@@ -38,6 +37,16 @@ class JudoApiError(Exception):
         super().__init__(message)
         self.status = status
         self.retryable = retryable
+
+
+class JudoAuthError(JudoApiError):
+    """The device refused the credentials.
+
+    Kept apart from any other failure so Home Assistant can ask for new
+    credentials instead of retrying forever against a device that answers a
+    perfectly healthy 401. A single 401 is still retried once: the module
+    answered one whole nightly scan with 401 and was fine again afterwards.
+    """
 
 
 class JudoDecodeError(Exception):
@@ -224,23 +233,21 @@ class RestAPI:
         try:
             response = await session.get(url, auth=self._auth, timeout=self._timeout)
             if response.status != 200:
-                raise JudoApiError(
+                error = (
+                    JudoAuthError
+                    if response.status in AUTH_STATUS
+                    else JudoApiError
+                )
+                raise error(
                     f"{command}: API returned status {response.status}",
                     status=response.status,
-                    retryable=response.status in RETRYABLE_STATUS,
+                    retryable=response.status in (RETRYABLE_STATUS | AUTH_STATUS),
                 )
             # The module labels its answer text/html, so the content type
             # check of aiohttp has to be switched off.
             return await response.json(content_type=None)
         except (TimeoutError, aiohttp.ClientError, ValueError) as err:
             raise JudoApiError(f"{command}: {err}", retryable=True) from err
-
-    async def _async_reauthenticate(self, session) -> None:
-        """Make the module hand out a fresh session after it rejected us."""
-        try:
-            await session.get(self._base_url, auth=self._auth, timeout=self._timeout)
-        except (TimeoutError, aiohttp.ClientError) as err:
-            _LOGGER.debug("Re-authentication attempt failed: %s", err)
 
     async def _request(self, command: str) -> str:
         """Run one REST command and return the raw hex payload.
@@ -262,8 +269,6 @@ class RestAPI:
                 except JudoApiError as err:
                     if not err.retryable or attempt == CONST.REQUEST_ATTEMPTS - 1:
                         raise
-                    if err.status in (401, 403):
-                        await self._async_reauthenticate(session)
                     _LOGGER.debug("Retrying %s after %s", command, err)
 
         if not isinstance(payload, dict) or "data" not in payload:

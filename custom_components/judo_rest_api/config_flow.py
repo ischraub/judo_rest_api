@@ -37,6 +37,44 @@ class ConfigFlow(config_entries.ConfigFlow, domain=CONST.DOMAIN):  # pylint: dis
 
     VERSION = 2
 
+    async def async_step_reauth(
+        self, entry_data: dict[str, Any]
+    ) -> config_entries.ConfigFlowResult:
+        """Start the re-authentication asked for by ConfigEntryAuthFailed."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Ask for credentials again and verify them against the device."""
+        errors: dict[str, str] = {}
+        reauth_entry = self._get_reauth_entry()
+
+        if user_input is not None:
+            try:
+                await validate_input(self.hass, {**reauth_entry.data, **user_input})
+                return self.async_update_reload_and_abort(
+                    reauth_entry, data_updates=user_input
+                )
+            except InvalidHost:
+                errors[CONF.HOST] = "invalid_host"
+            except ConnectionFailed:
+                errors["base"] = "cannot_connect"
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF.USERNAME, default=reauth_entry.data[CONF.USERNAME]
+                    ): str,
+                    vol.Required(CONF.PASSWORD): str,
+                }
+            ),
+            errors=errors,
+            description_placeholders={CONF.HOST: reauth_entry.data[CONF.HOST]},
+        )
+
     def _postfix_in_use(self, postfix: str, ignore_entry_id: str | None = None) -> bool:
         """Return whether another entry already uses this device postfix.
 

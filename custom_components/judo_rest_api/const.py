@@ -44,6 +44,9 @@ class MainConstants:
     REQUEST_ATTEMPTS = 2
     # Pause between those attempts.
     RETRY_DELAY = 1.0
+    # Consecutive scans that have to fail authentication from start to finish
+    # before Home Assistant is asked to collect new credentials.
+    AUTH_FAILURES_BEFORE_REAUTH = 3
     # Margin kept free at the end of a scan so the next one starts on time.
     SCAN_MARGIN = 5
 

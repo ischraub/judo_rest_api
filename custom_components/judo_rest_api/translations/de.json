@@ -1,7 +1,8 @@
 {
   "config": {
     "abort": {
-      "already_configured": "Account ist bereits konfiguriert"
+      "already_configured": "Account ist bereits konfiguriert",
+      "reauth_successful": "Erneute Anmeldung erfolgreich"
     },
     "error": {
       "cannot_connect": "Verbindung fehlgeschlagen",
@@ -27,6 +28,13 @@
           "scan_interval": "API-Abfrageintervall (standard = 60 s)",
           "host": "Hostname oder IP Adresse",
           "port": "HTTP Port",
+          "username": "Benutzername",
+          "password": "Passwort"
+        }
+      },
+      "reauth_confirm": {
+        "description": "Zugangsdaten für das Judo-Connectivity-Modul unter {host} erneut eingeben. Das Gerät hat die gespeicherten abgelehnt.",
+        "data": {
           "username": "Benutzername",
           "password": "Passwort"
         }
