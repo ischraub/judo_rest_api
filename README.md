@@ -1,3 +1,8 @@
+# Version 1.1.4
+* A single REST call is retried once on a transient failure (timeout, connection error, HTTP 401/403/5xx). The connectivity module answered every command of one nightly scan with 401 and was fine again afterwards; without a retry that single hiccup took the whole scan down and put an error in the log. On 401 the base URL is touched first, which makes the module hand out a fresh session.
+* This repository now publishes GitHub releases. Without them HACS tracks the default branch and labels the installed version with the short commit SHA instead of a version number.
+* `hacs.json` carries a readable display name.
+
 # Version 1.1.3
 * `operating_time` now declares a `deadband` of 1 hour. The counter advances by 1/60 h every minute, so at a 60 s scan interval every single scan was a state change: ~1440 recorder rows a day for a number that is only interesting to the hour. Now ~23. Simulated over a week the reported value stayed within 15 minutes of the real counter - the deadband bounds the lag, it does not accumulate.
 * `water_total` and `water_treated` deliberately keep no deadband: they resolve to one litre and change often while water runs, but that is the data the water dashboard needs.

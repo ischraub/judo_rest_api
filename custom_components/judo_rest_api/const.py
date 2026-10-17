@@ -39,6 +39,11 @@ class MainConstants:
     MIN_SCAN_INTERVAL = 10
     # Timeout for a single REST call.
     REQUEST_TIMEOUT = 10
+    # Attempts per REST call. The module drops its session every now and then
+    # and answers 401 for one scan; a second try gets through.
+    REQUEST_ATTEMPTS = 2
+    # Pause between those attempts.
+    RETRY_DELAY = 1.0
     # Margin kept free at the end of a scan so the next one starts on time.
     SCAN_MARGIN = 5
 

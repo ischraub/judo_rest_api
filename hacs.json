@@ -1,3 +1,4 @@
 {
-    "name": "judo_rest_api"
-  }
+  "name": "Judo Rest API",
+  "render_readme": true
+}

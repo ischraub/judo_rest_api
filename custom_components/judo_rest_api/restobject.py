@@ -23,8 +23,21 @@ from .items import RestItem
 _LOGGER = logging.getLogger(__name__)
 
 
+# Conditions that are worth a second attempt rather than an immediate failure.
+# 401 is in here on purpose: the connectivity module answered every command of
+# a single scan with 401 once during the night and was fine again afterwards,
+# so a dropped session is far more likely than a wrong password.
+RETRYABLE_STATUS = frozenset({401, 403, 500, 502, 503, 504})
+
+
 class JudoApiError(Exception):
     """The device could not be reached or answered with an error."""
+
+    def __init__(self, message: str, status: int | None = None, retryable: bool = False) -> None:
+        """Record the HTTP status, if there was one, and whether to retry."""
+        super().__init__(message)
+        self.status = status
+        self.retryable = retryable
 
 
 class JudoDecodeError(Exception):
@@ -200,30 +213,58 @@ class RestAPI:
         self._auth = aiohttp.BasicAuth(
             config_entry.data[CONF.USERNAME], config_entry.data[CONF.PASSWORD]
         )
-        self._api_url = f"http://{self._ip}:{self._port}/api/rest/"
+        self._base_url = f"http://{self._ip}:{self._port}"
+        self._api_url = self._base_url + "/api/rest/"
         self._devicetype = None
         self._lock = asyncio.Lock()
         self._timeout = aiohttp.ClientTimeout(total=CONST.REQUEST_TIMEOUT)
 
+    async def _attempt(self, session, url: str, command: str):
+        """Run one REST command once and return the parsed answer."""
+        try:
+            response = await session.get(url, auth=self._auth, timeout=self._timeout)
+            if response.status != 200:
+                raise JudoApiError(
+                    f"{command}: API returned status {response.status}",
+                    status=response.status,
+                    retryable=response.status in RETRYABLE_STATUS,
+                )
+            # The module labels its answer text/html, so the content type
+            # check of aiohttp has to be switched off.
+            return await response.json(content_type=None)
+        except (TimeoutError, aiohttp.ClientError, ValueError) as err:
+            raise JudoApiError(f"{command}: {err}", retryable=True) from err
+
+    async def _async_reauthenticate(self, session) -> None:
+        """Make the module hand out a fresh session after it rejected us."""
+        try:
+            await session.get(self._base_url, auth=self._auth, timeout=self._timeout)
+        except (TimeoutError, aiohttp.ClientError) as err:
+            _LOGGER.debug("Re-authentication attempt failed: %s", err)
+
     async def _request(self, command: str) -> str:
-        """Run one REST command and return the raw hex payload."""
+        """Run one REST command and return the raw hex payload.
+
+        A transient failure is retried once. Without that a single hiccup took
+        the whole scan down and put an error in the log, although the device
+        was answering normally again a minute later.
+        """
         url = self._api_url + command
         session = async_get_clientsession(self._hass)
         async with self._lock:
             _LOGGER.debug("Send command %s", command)
-            try:
-                response = await session.get(
-                    url, auth=self._auth, timeout=self._timeout
-                )
-                if response.status != 200:
-                    raise JudoApiError(
-                        f"{command}: API returned status {response.status}"
-                    )
-                # The module labels its answer text/html, so the content type
-                # check of aiohttp has to be switched off.
-                payload = await response.json(content_type=None)
-            except (TimeoutError, aiohttp.ClientError, ValueError) as err:
-                raise JudoApiError(f"{command}: {err}") from err
+            for attempt in range(CONST.REQUEST_ATTEMPTS):
+                if attempt:
+                    await asyncio.sleep(CONST.RETRY_DELAY)
+                try:
+                    payload = await self._attempt(session, url, command)
+                    break
+                except JudoApiError as err:
+                    if not err.retryable or attempt == CONST.REQUEST_ATTEMPTS - 1:
+                        raise
+                    if err.status in (401, 403):
+                        await self._async_reauthenticate(session)
+                    _LOGGER.debug("Retrying %s after %s", command, err)
 
         if not isinstance(payload, dict) or "data" not in payload:
             raise JudoApiError(f"{command}: answer without data field: {payload!r}")
