@@ -8,7 +8,6 @@ from time import monotonic
 from typing import Any
 
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.translation import async_get_translations
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -82,11 +81,6 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
         # key -> (raw payload or None, message). Kept for diagnostics: an item
         # that fails to decode is the one whose payload you want to see.
         self._last_errors: dict[str, tuple[str | None, str]] = {}
-        # A single 401 can be transient - the module answered one whole nightly
-        # scan with 401 and was fine again afterwards. Only a run of scans that
-        # fail authentication from start to finish is treated as bad
-        # credentials, so a blip does not pop a re-auth dialog.
-        self._auth_failures = 0
         # Leave a little room so a slow scan does not run into the next one.
         self._budget = max(CONST.REQUEST_TIMEOUT, self._scan_interval - CONST.SCAN_MARGIN)
 
@@ -148,11 +142,14 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
         try:
             await self._rest_api.async_connect()
         except JudoAuthError as err:
-            # Saying "cannot reach device" for a 401 sent us looking for a
-            # network problem; the device was answering perfectly well and
-            # refusing the credentials.
-            raise ConfigEntryAuthFailed(
-                f"Judo device refused the credentials: {err}"
+            # Say what actually happened. "Cannot reach device" for a 401 sent
+            # us looking for a network problem although the device was
+            # answering perfectly well and refusing the credentials. The
+            # credentials themselves stay as configured: they are the user's
+            # to change, through the reconfigure dialog, not something to
+            # demand again because the device had a bad night.
+            raise UpdateFailed(
+                f"Judo device refused the configured credentials: {err}"
             ) from err
         except JudoApiError as err:
             # async_config_entry_first_refresh turns this into
@@ -170,7 +167,6 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
         """
         data: dict[str, ItemValue] = {}
         errors: dict[str, tuple[str | None, str]] = {}
-        auth_failed = False
         deadline = monotonic() + self._budget
 
         for item in self._readable:
@@ -195,25 +191,12 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
                     data[item.key] = previous
                 else:
                     data[item.key] = ItemValue(value, raw)
-            except JudoAuthError as err:
-                errors[item.key] = (raw, str(err))
-                auth_failed = True
             except (JudoApiError, JudoDecodeError) as err:
                 # Keep the payload: for a decode failure it is the only thing
                 # that says why, and it is what diagnostics reports.
                 errors[item.key] = (raw, str(err))
 
         self._last_errors = errors
-
-        if data or not auth_failed:
-            self._auth_failures = 0
-        else:
-            self._auth_failures += 1
-            if self._auth_failures >= CONST.AUTH_FAILURES_BEFORE_REAUTH:
-                raise ConfigEntryAuthFailed(
-                    f"Judo device refused the credentials on "
-                    f"{self._auth_failures} scans in a row"
-                )
 
         if not data:
             raise UpdateFailed(

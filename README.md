@@ -1,3 +1,7 @@
+# Version 1.1.6
+* Reverts the re-authentication prompt from 1.1.5. Credentials are entered once when the integration is set up and stay in force until the user changes them through the reconfigure dialog; the integration must not ask for them again because the device had a bad night. A transient 401 - the module answered one whole nightly scan with 401 and was fine afterwards - would have pushed a credentials dialog at a password that was never wrong.
+* What stays from 1.1.5 is the part that was actually useful: a 401 says so. The setup error now reads "Judo device refused the configured credentials" instead of "Cannot reach Judo device", which no longer sends you looking for a network problem. The entry keeps retrying like after any other failure.
+
 # Version 1.1.5
 * A 401 is now reported as what it is. Before, a refused password surfaced as "Cannot reach Judo device", which sends you looking for a network problem although the device is answering perfectly well. Setup now raises `ConfigEntryAuthFailed` and Home Assistant offers a re-authentication dialog to enter the credentials again.
 * During normal operation a re-authentication is only requested after three consecutive scans that failed authentication from start to finish, so a single transient 401 does not pop a dialog. A transient 401 is still retried once.

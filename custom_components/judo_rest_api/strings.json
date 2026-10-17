@@ -1,8 +1,7 @@
 {
   "config": {
     "abort": {
-      "already_configured": "Account is already configured",
-      "reauth_successful": "Re-authentication successful"
+      "already_configured": "Account is already configured"
     },
     "error": {
       "cannot_connect": "Failed to connect",
@@ -28,13 +27,6 @@
           "scan_interval": "API poll interval (default = 60 sec)",
           "host": "Host name or IP address",
           "port": "HTTP Port",
-          "username": "User name",
-          "password": "Password"
-        }
-      },
-      "reauth_confirm": {
-        "description": "Re-enter the credentials for the Judo connectivity module at {host}. The device refused the ones stored.",
-        "data": {
           "username": "User name",
           "password": "Password"
         }
