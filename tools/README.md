@@ -1,5 +1,10 @@
 # Bench tools
 
+The **current** API command list is linked from https://judo.eu/produkte/api/
+and lives at https://judo.eu/ftp-upload/download/REST-API/RESTAPI_Kommandos.pdf
+The 2024 PDF that this integration was originally written against is outdated
+and misses command 69.
+
 Not shipped with the integration.
 
 ## judo_rest_probe.py
@@ -142,3 +147,36 @@ explicit `read_endian` on the item.
 | `5800` service contact | `2b34392037313935...` -> "+49 7195 692517" | | 16 byte ASCII |
 | `2800` water total | `EC221000` -> 1057.516 m3 | | 4 byte little-endian, litres |
 | `2900` water treated | `2EDC0000` -> 56.366 m3 | | 4 byte little-endian, litres |
+
+
+## Command 69: device status
+
+Needs device software newer than 1.5.31. 16 byte answer:
+
+| Byte | Meaning |
+|---|---|
+| 0 | Active scene (same numbering as command 36) |
+| 1 | Active scene options (bit per option) |
+| 2 | Global leakage protection status |
+| 3 | Leakage reason |
+| 4-5 | Current flow in l/h (little-endian) |
+| 6-7 | Current draw duration in minutes |
+| 8-9 | Current draw amount in litres |
+| 10-11 | Water temperature in degrees C |
+| 12-15 | unused |
+
+This is the only way to ask which scene is running.
+
+## HTTP errors the module returns
+
+Documented in the Smart Home manual (1702574, 2026/01), chapter 7:
+
+| Status | Meaning |
+|---|---|
+| 400 | No arguments, or the command is not allowed |
+| 429 | Device control did not answer within 1.5 s; `Retry-After: 2` |
+| 500 | Arguments wrong or longer than 80 bytes |
+
+A response from the device control that starts with `FF` is an error, not
+data: `FF0001` is a checksum error. A full-length answer that happens to begin
+with `FF` is not - a scene set to bypass answers `FFFF...`.
