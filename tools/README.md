@@ -31,14 +31,39 @@ Scene numbers: 0 Alltag meistern, 1 Koerper pflegen, 2 Garten bewaessern,
 Durations listed for command 36: `000F` 15 min, `001E` 30 min, `002D` 45 min,
 `0100` 1 h, `0200` 2 h, `0600` 6 h, `0C00` 12 h, `FFFF` unlimited.
 
-Read them back without changing anything:
+The statistics commands need a date appended (day, month, year as 2 bytes
+little-endian): `/api/rest/FB001506E807` is 21.06.2024. Without it the device
+answers empty, and `FE00` answers with a chunked body whose framing is broken,
+which takes a plain HTTP client down. Pass `--statistics` to query them for
+today.
+
+Read the scenes back without changing anything:
 
 ```
 python3 tools/judo_rest_probe.py <ip> -p <password> --scenes
 ```
 
-Two things the document leaves open and that a device has to settle before
-this can go into the integration:
+### What the document gets wrong for this family
+
+The i-soft PRO page (device types 0x58, 0x4b, 0x4c) is the only one whose
+examples are not copy-pasted from the i-soft page, and it differs in two
+places:
+
+* **Device number is big-endian.** Its example `10D36F28` = 282292008 only
+  works big-endian; every other page's example (`64d90100` = 121188,
+  `0774ed0b` = 200111111) only works little-endian.
+* **SW version has a numeric third component.** `0C0001` = 1.0.12, where the
+  other pages read the same byte as a letter (`6b1502` = 2.21k).
+
+And one place where the document is wrong about this family: it gives
+`060c7500` = 117 days for the operating day counter, which is little-endian.
+That very example appears verbatim on pages 1, 4 and 5 as well, so it was
+copied, not measured. On a real i-soft PRO the counter is **big-endian**:
+`0209` reads 521, which is exactly the number of days since the commissioning
+date the same device reports, while little-endian would give 2306 days for a
+device commissioned in 2025.
+
+### Open points for the scenes
 
 1. Its example for command 36 (`/api/rest/36000200200`) has an odd number of
    hex characters. `3600` + `02` + `0200` would be the consistent form.
@@ -55,10 +80,10 @@ explicit `read_endian` on the item.
 | Command | i-soft, FW 2.21k | i-soft PRO, FW 1.04 | Layout |
 |---|---|---|---|
 | `FF00` device type | | `5800` | type in the first byte |
-| `0600` device number | `64d90100` -> 121188 | `24146ba8` -> unverified | 4 byte little-endian |
-| `0100` SW version | `6b1502` -> 2.21k | -> 1.04 | letter, minor, major; letter only when printable |
+| `0600` device number | `64d90100` -> 121188 (**little**-endian) | `24146BA8` -> 605318056 (**big**-endian) | 4 byte, endianness differs by family |
+| `0100` SW version | `6b1502` -> 2.21k | `110401` -> 1.4.17 | patch, minor, major; a printable patch byte is a letter suffix (`2.21k`), a numeric one a third component (`1.4.17`) |
 | `0E00` commissioning | | `0d0507e9` -> 13.05.2025 | day, month, year **big-endian** |
-| `2500` operating time | `060c7500` -> 6 min, 12 h, 117 d (little-endian) | `0f030209` -> 15 min, 3 h, 521 d (**big-endian**) | minutes, hours, days (2 byte) |
+| `2500` operating time | `060c7500` -> 6 min, 12 h, 117 d (little-endian) | `0E150209` -> 14 min, 21 h, 521 d (**big-endian**) | minutes, hours, days (2 byte) |
 | `5100` target hardness | `0600` -> 6 °dH | | 2 byte little-endian |
 | `5600` salt | `f6541100` -> 21.75 kg, 17 d | | mass in g, then days |
 | `5800` service contact | `2b34392037313935...` -> "+49 7195 692517" | | 16 byte ASCII |

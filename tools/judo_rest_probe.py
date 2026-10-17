@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import argparse
 import base64
+import datetime
+import http.client
 import json
 import sys
 import urllib.error
@@ -51,11 +53,28 @@ COMMANDS = {
     "Salzreichweite": "5700",
     "Gesamtwassermenge": "2800",
     "Weichwassermenge": "2900",
+}
+
+# The statistics commands need a date appended: day, month, year as 2 bytes
+# little-endian. Without it the device answers empty, and FE00 answers with a
+# chunked body whose framing is broken, which takes the HTTP client down.
+STATISTICS = {
     "Tagesstatistik": "FB00",
     "Wochenstatistik": "FC00",
     "Monatsstatistik": "FD00",
     "Jahresstatistik": "FE00",
 }
+
+
+# http.client.IncompleteRead is an HTTPException, not an OSError, so it used to
+# escape the handler and abort the whole run.
+FETCH_ERRORS = (
+    urllib.error.URLError,
+    http.client.HTTPException,
+    OSError,
+    ValueError,
+    KeyError,
+)
 
 
 def fetch(base_url: str, command: str, auth_header: str, timeout: float) -> str:
@@ -65,6 +84,11 @@ def fetch(base_url: str, command: str, auth_header: str, timeout: float) -> str:
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
         return json.loads(response.read().decode())["data"]
+
+
+def date_suffix(day: datetime.date) -> str:
+    """Encode a date the way the statistics commands expect it."""
+    return f"{day.day:02X}{day.month:02X}{day.year & 0xFF:02X}{day.year >> 8:02X}"
 
 
 def describe_scene(raw: str) -> str:
@@ -100,7 +124,7 @@ def read_scenes(base_url: str, auth_header: str, timeout: float) -> None:
         command = f"37{number:02X}"
         try:
             data = fetch(base_url, command, auth_header, timeout)
-        except (urllib.error.URLError, OSError, ValueError, KeyError) as err:
+        except FETCH_ERRORS as err:
             print(f"  {number:X} {name:<20} {command}  !! {err}")
             continue
         print(f"  {number:X} {name:<20} {command}  {data}")
@@ -116,6 +140,11 @@ def main() -> int:
     parser.add_argument("-p", "--password", default="Connectivity")
     parser.add_argument("-t", "--timeout", default=10.0, type=float)
     parser.add_argument(
+        "--statistics",
+        action="store_true",
+        help="also query the statistics commands for today's date",
+    )
+    parser.add_argument(
         "--scenes",
         action="store_true",
         help="also read the scene settings (i-soft PRO family only)",
@@ -126,11 +155,18 @@ def main() -> int:
     token = base64.b64encode(f"{args.username}:{args.password}".encode()).decode()
     auth_header = f"Basic {token}"
 
-    width = max(len(name) for name in COMMANDS)
-    for name, command in COMMANDS.items():
+    today = datetime.date.today()
+    queries = dict(COMMANDS)
+    if args.statistics:
+        queries.update(
+            {name: code + date_suffix(today) for name, code in STATISTICS.items()}
+        )
+
+    width = max(len(name) for name in queries)
+    for name, command in queries.items():
         try:
             data = fetch(base_url, command, auth_header, args.timeout)
-        except (urllib.error.URLError, OSError, ValueError, KeyError) as err:
+        except FETCH_ERRORS as err:
             print(f"{name:{width}}  {command}  !! {err}")
             continue
         print(f"{name:{width}}  {command}  {data}")
