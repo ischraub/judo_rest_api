@@ -1,3 +1,7 @@
+# Version 1.3.1
+* Fixes a regression in 1.3.0: the water scene select went unavailable on device software older than 1.5.31, which took the control away entirely. Activating a scene does not depend on reading one, so the select stays operable and only the shown active scene stays unknown until the firmware supports command 69.
+* The scene duration is named so that it sorts directly below the scene in the controls.
+
 # Version 1.3.0
 Built on the **current** API command list, `https://judo.eu/ftp-upload/download/REST-API/RESTAPI_Kommandos.pdf`, linked from https://judo.eu/produkte/api/. The November 2024 PDF this integration was written against is outdated and misses command 69 entirely.
 

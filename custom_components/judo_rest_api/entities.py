@@ -300,13 +300,23 @@ class MySceneEntity(MyEntity, SelectEntity):  # pylint: disable=W0223
         self._attr_options = [item.translation_key for item in rest_item.resultlist or []]
 
     @property
-    def current_option(self):
-        """Return the scene the device reports as active.
+    def available(self) -> bool:
+        """Stay operable even when the active scene cannot be read.
 
-        Read from command 6900, which needs device software newer than 1.5.31.
-        On older firmware the item has no value and the entity is unavailable:
-        the API has no other way to ask which scene is running, and showing
-        the scene last activated from here would claim more than it knows.
+        Activating a scene does not depend on reading one. Command 69 needs
+        device software newer than 1.5.31, and tying availability to it took
+        the control away from everyone on older firmware.
+        """
+        return self.coordinator.last_update_success
+
+    @property
+    def current_option(self):
+        """Return the scene the device reports as active, if it can say.
+
+        Read from command 69, which needs device software newer than 1.5.31.
+        On older firmware this stays unknown: the API has no other way to ask
+        which scene is running, and echoing the scene last activated from here
+        would claim more than it knows.
         """
         value = self._item_value
         return value if value in self._attr_options else None

@@ -105,7 +105,7 @@
         }
       },
       "water_scene_duration": {
-        "name": "Szenendauer",
+        "name": "Wasserszene Dauer",
         "state": {
           "duration_15_min": "15 Minuten",
           "duration_30_min": "30 Minuten",
