@@ -139,9 +139,9 @@ explicit `read_endian` on the item.
 |---|---|---|---|
 | `FF00` device type | | `5800` | type in the first byte |
 | `0600` device number | `64d90100` -> 121188 (**little**-endian) | `24146BA8` -> 605318056 (**big**-endian) | 4 byte, endianness differs by family |
-| `0100` SW version | `6b1502` -> 2.21k | `110401` -> 1.4.17 | patch, minor, major; a printable patch byte is a letter suffix (`2.21k`), a numeric one a third component (`1.4.17`) |
+| `0100` SW version | `6b1502` -> 2.21k | `200501` -> 1.5.32 | patch, minor, major. The **device family** decides whether the patch byte is a letter or a number, not the byte itself: patch 33 is `0x21`, a printable "!" |
 | `0E00` commissioning | | `0d0507e9` -> 13.05.2025 | day, month, year **big-endian** |
-| `2500` operating time | `060c7500` -> 6 min, 12 h, 117 d (little-endian) | `0E150209` -> 14 min, 21 h, 521 d (**big-endian**) | minutes, hours, days (2 byte) |
+| `2500` operating time | `060c7500` -> 6 min, 12 h, 117 d (little-endian) | `020E` -> 526 d (**big-endian, measured**) | minutes, hours, days (2 byte) |
 | `5100` target hardness | `0600` -> 6 °dH | | 2 byte little-endian |
 | `5600` salt | `f6541100` -> 21.75 kg, 17 d | | mass in g, then days |
 | `5800` service contact | `2b34392037313935...` -> "+49 7195 692517" | | 16 byte ASCII |
@@ -166,6 +166,19 @@ Needs device software newer than 1.5.31. 16 byte answer:
 | 12-15 | unused |
 
 This is the only way to ask which scene is running.
+
+**Measured on an i-soft PRO running 1.5.32**, which confirms the layout:
+
+```
+00CF27000000000000001100BA010C00
+```
+
+Scene 0, options `0xCF`, leakage status `0x27`, no leak, no flow, 17 °C. Every
+bit of the options byte that has a counterpart in the command 37 scene data
+agrees with it, which cross-checks both layouts against each other.
+
+Two caveats the document gets wrong: bytes 12-15 are listed as unused but came
+back `BA01` and `0C00` - little-endian 442 and 12. Meaning unknown.
 
 ## HTTP errors the module returns
 

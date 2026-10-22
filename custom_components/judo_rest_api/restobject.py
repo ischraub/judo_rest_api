@@ -23,6 +23,12 @@ from .items import RestItem
 _LOGGER = logging.getLogger(__name__)
 
 
+# Device types of the i-soft PRO family. Their software version carries a
+# numeric third component ("1.5.32") where the other families carry a letter
+# ("2.21k"), and the two cannot be told apart by the byte alone: patch level
+# 33 is 0x21, which is a printable "!".
+PRO_FAMILY = frozenset({"58", "4B", "4C"})
+
 # Statuses worth a second attempt rather than an immediate failure. 429 is
 # documented by Judo: the module answers it with "Retry-After: 2" when the
 # device control does not reply within 1.5 s.
@@ -109,21 +115,25 @@ def _decode_text(field: str) -> str:
     return bytes.fromhex(field).decode("ascii", "replace").replace("\x00", "").strip()
 
 
-def _decode_sw_version(field: str) -> str:
+def _decode_sw_version(field: str, devicetype: str | None = None) -> str:
     """Decode the 3 byte software version.
 
     Reversed the bytes read major, minor, then a third byte whose meaning
-    differs by device family. On an i-soft it is a printable letter and the
-    version reads "2.21k"; on an i-soft PRO it is a number and the version
-    reads "1.4.17", which is what the Judo app shows for the payload 110401.
-    Decoding it blindly as a character used to put a replacement glyph into
-    the state.
+    differs by device family: on an i-soft it is a letter and the version
+    reads "2.21k", on an i-soft PRO it is a number and the version reads
+    "1.5.32".
+
+    The family decides, not the byte. Guessing from the byte worked only while
+    patch levels stayed below 33: 1.5.32 ends in 0x20, a space, but 1.5.33
+    ends in 0x21, a printable "!", and would have been rendered as "1.05!".
     """
     data = bytes.fromhex(field)[::-1]
     if len(data) < 2:
         raise JudoDecodeError(f"software version: expected 3 bytes, got {field!r}")
     if len(data) < 3:
         return f"{data[0]}.{data[1]:02d}"
+    if devicetype in PRO_FAMILY:
+        return f"{data[0]}.{data[1]}.{data[2]}"
     if 0x21 <= data[2] <= 0x7E:
         return f"{data[0]}.{data[1]:02d}{chr(data[2])}"
     return f"{data[0]}.{data[1]}.{data[2]}"
@@ -166,7 +176,9 @@ def _decode_date(field: str) -> date:
         raise JudoDecodeError(f"date: {day:02d}.{month:02d}.{year} is not a date") from err
 
 
-def decode_item(rest_item: RestItem, raw: str, divider: float = 1) -> Any:
+def decode_item(
+    rest_item: RestItem, raw: str, divider: float = 1, devicetype: str | None = None
+) -> Any:
     """Decode the raw payload of a read command into the item's value.
 
     Raises JudoDecodeError if the payload does not match what the item expects,
@@ -196,7 +208,7 @@ def decode_item(rest_item: RestItem, raw: str, divider: float = 1) -> Any:
                 raise JudoDecodeError(f"{what}: no status list to map {number}")
             return key
         case FORMATS.SW_VERSION:
-            return _decode_sw_version(field)
+            return _decode_sw_version(field, devicetype)
         case FORMATS.DATE:
             return _decode_date(field)
         case FORMATS.DURATION:
@@ -374,7 +386,9 @@ class RestObject:
 
     def decode(self, raw: str):
         """Decode a raw payload for this item."""
-        return decode_item(self._rest_item, raw, self._divider)
+        return decode_item(
+            self._rest_item, raw, self._divider, self._rest_api.get_devicetype()
+        )
 
     async def async_read(self) -> ItemValue:
         """Read and decode this item. Raises on any problem.

@@ -1,3 +1,12 @@
+# Version 1.3.3
+* The software version's third byte is interpreted by **device family**, not by whether the byte happens to be printable. On the i-soft PRO family it is a number, elsewhere a letter. The old guess survived 1.5.32 only because `0x20` is a space: 1.5.33 would have rendered as "1.05!", and 1.5.48 as "1.050".
+
+Three things an i-soft PRO on 1.5.32 confirmed against real hardware:
+
+* **Command 69 works and the 16 byte layout is right.** Every bit of its scene-options byte that has a counterpart in the command 37 scene data agrees with it, so the two layouts cross-check each other. Active scene, current flow and water temperature now have values.
+* **The operating day counter is big-endian.** Predicted `020E` for big-endian and `0709` for little-endian after five days; the device answered `020E`. The document's little-endian example is copy-pasted from another page and wrong for this family.
+* The software version decodes to 1.5.32 from `200501`, as predicted.
+
 # Version 1.3.2
 * `hacs.json` sets `hide_default_branch`, so HACS can only track releases and never the `main` branch. A repository that offers both can end up comparing the installed release against the branch head, which makes the update check look broken.
 
