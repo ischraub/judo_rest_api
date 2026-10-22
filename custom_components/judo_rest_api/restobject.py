@@ -29,6 +29,13 @@ _LOGGER = logging.getLogger(__name__)
 # 33 is 0x21, which is a printable "!".
 PRO_FAMILY = frozenset({"58", "4B", "4C"})
 
+# Scene 3, "Urlaub geniessen". The holiday mode runs exactly while this scene
+# is the active one, which command 69 byte 0 reports. Command 41 cannot say:
+# read back it returns the stored configuration - a device with the mode off
+# still answered 0106, flags "active" and six days - so its flag byte is what
+# the next start will use, not what is running.
+HOLIDAY_SCENE_NUMBER = 0x03
+
 # Command 69 byte 1, "Aktive Szenenoptionen".
 SCENE_OPTION_HOLIDAY = 0x20
 
@@ -218,15 +225,27 @@ def holiday_days(raw: str | None) -> int:
     return data[1] if len(data) > 1 else 0
 
 
-def holiday_is_active(raw: str | None) -> bool:
-    """Return whether command 41 reports the holiday mode as switched on.
+def active_scene(status_raw: str | None) -> int | None:
+    """Return the scene number command 69 reports as active."""
+    if not status_raw:
+        return None
+    try:
+        data = bytes.fromhex(status_raw)
+    except ValueError:
+        return None
+    return data[0] if data else None
 
-    Command 69 cannot answer this. Its byte 1 mirrors the options of the
-    *active scene*, which is why its "timer_holiday" bit is clear while scene
-    0 runs even though the holiday mode is on - the bit says that this scene
-    has no holiday timer, not that the device has none.
+
+def holiday_is_active(status_raw: str | None) -> bool:
+    """Return whether the device is running the holiday mode.
+
+    Decided by the active scene in command 69 byte 0, not by command 41. Two
+    earlier readings were wrong: byte 1 of command 69 mirrors the options of
+    the active scene rather than the device mode, and command 41 read back
+    reports the stored configuration, which says "active" on a device whose
+    holiday mode is off.
     """
-    return bool(holiday_flags(raw) & HOLIDAY_FLAG_ACTIVE)
+    return active_scene(status_raw) == HOLIDAY_SCENE_NUMBER
 
 
 def decode_item(
@@ -251,7 +270,7 @@ def decode_item(
         case FORMATS.NUMBER:
             return _to_int(field, rest_item.read_endian) / divider
         case FORMATS.HOLIDAY:
-            return bool(_to_int(field, rest_item.read_endian) & HOLIDAY_FLAG_ACTIVE)
+            return _to_int(field, rest_item.read_endian) == HOLIDAY_SCENE_NUMBER
         case FORMATS.SERIAL:
             # An identifier, not a measurement: a string, so it can never be
             # rendered as "2825589796.0" or recorded as a statistic.
@@ -467,19 +486,33 @@ class RestObject:
             CONST.HOLIDAY_COMMAND, f"{flags & 0xFF:02X}{days:02X}"
         )
 
-    async def async_end_holiday(self, raw: str | None) -> None:
+    async def async_read_holiday(self) -> str | None:
+        """Read command 41 back: its flag byte and duration in days.
+
+        Fetched when it is needed rather than polled, because what it reports
+        is the stored configuration, not the running state - it is only good
+        for writing the other flags back unchanged.
+        """
+        try:
+            return await self._rest_api.async_get(CONST.HOLIDAY_COMMAND)
+        except JudoApiError as err:
+            _LOGGER.warning("Could not read the holiday configuration: %s", err)
+            return None
+
+    async def async_end_holiday(self) -> None:
         """Switch the holiday mode off, changing nothing else.
 
-        The flags and the day count are written back exactly as the device
-        reported them, with only the active bit cleared. Rebuilding them from
-        elsewhere risked silently turning other options off.
+        The flags and the day count go back exactly as the device reported
+        them, with only the active bit cleared.
         """
+        raw = await self.async_read_holiday()
         await self.async_write_holiday(
             holiday_flags(raw) & ~HOLIDAY_FLAG_ACTIVE, holiday_days(raw)
         )
 
-    async def async_start_holiday(self, raw: str | None, days: int) -> None:
+    async def async_start_holiday(self, days: int) -> None:
         """Switch the holiday mode on for a number of days."""
+        raw = await self.async_read_holiday()
         await self.async_write_holiday(holiday_flags(raw) | HOLIDAY_FLAG_ACTIVE, days)
 
     async def async_activate_scene(self, scene: int, duration: int) -> None:

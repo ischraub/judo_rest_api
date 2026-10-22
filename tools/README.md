@@ -204,10 +204,18 @@ two bytes - measured on an i-soft PRO: `0106`, meaning the holiday mode is on
 with six days. `--holiday` does this. It stays out of the default run because
 it sends a write command without data.
 
-So the holiday state must be read from command 41, not from command 69. Byte 1
-of command 69 mirrors the options of the *active scene*: its "timer_holiday"
-bit is clear while scene 0 runs even when the holiday mode is on, because that
-bit says this scene has no holiday timer, not that the device has none.
+**The holiday state is the active scene**, command 69 byte 0: the mode runs
+exactly while scene 3, "Urlaub geniessen", is active. Neither of the other two
+candidates works:
+
+* Command 69 **byte 1** mirrors the options of the active scene, so its
+  "timer_holiday" bit describes the scene, not the device.
+* Command 41 **read back reports the stored configuration** - the flags and
+  day count the next start will use. A device running "Alltag meistern" with
+  the holiday mode off still answers `0106`, flags "active" and six days.
+
+Command 41 is still worth reading before writing it, so the other flags it
+carries go back unchanged.
 
 ## HTTP errors the module returns
 

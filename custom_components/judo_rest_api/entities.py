@@ -31,8 +31,6 @@ _LOGGER = logging.getLogger(__name__)
 # ends it; command 41 does.
 HOLIDAY_SCENE = "scene_holiday"
 
-# The item that reads command 41, i.e. the holiday mode itself.
-HOLIDAY_ITEM = "holiday_mode"
 
 
 class MyEntity(CoordinatorEntity[MyCoordinator]):
@@ -369,11 +367,12 @@ class MySceneEntity(MyEntity, SelectEntity):  # pylint: disable=W0223
         duration = self._duration()
         ro = RestObject(self._rest_api, self._rest_item)
 
-        holiday_raw = self._coordinator.raw_by_translation_key(HOLIDAY_ITEM)
+        # The scene item reads command 69 itself, so its raw answer already
+        # says which scene is running.
         left_holiday = False
-        if holiday_is_active(holiday_raw):
+        if holiday_is_active(self._coordinator.raw_of(self._rest_item.key)):
             try:
-                await ro.async_end_holiday(holiday_raw)
+                await ro.async_end_holiday()
             except (JudoApiError, JudoDecodeError) as err:
                 raise HomeAssistantError(
                     f"Could not leave holiday mode: {err}"
@@ -466,10 +465,9 @@ class MyHolidayButtonEntity(MyEntity, ButtonEntity):  # pylint: disable=W0223
         if not 1 <= days <= 60:
             raise HomeAssistantError(f"Holiday duration {days} is not between 1 and 60 days")
 
-        holiday_raw = self._coordinator.raw_by_translation_key(params.get("flags_item"))
         ro = RestObject(self._rest_api, self._rest_item)
         try:
-            await ro.async_start_holiday(holiday_raw, days)
+            await ro.async_start_holiday(days)
         except (JudoApiError, JudoDecodeError) as err:
             raise HomeAssistantError(f"Could not start holiday mode: {err}") from err
         await self._coordinator.async_request_refresh()

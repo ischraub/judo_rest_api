@@ -1,3 +1,12 @@
+# Version 1.5.1
+**The holiday mode is read from the active scene.** It runs exactly while scene 3, "Urlaub genießen", is the active one, which is command 69 byte 0.
+
+1.5.0 read it from command 41 instead and reported it as on while the device was running "Alltag meistern" with the mode off. Read back, command 41 reports the **stored configuration** - the flags and day count the next start will use - not the running state: a device with the mode off still answers `0106`, flags "active" and six days.
+
+That makes three readings of the holiday state in a row that were wrong, each from a field that looked plausible. The active scene is the one the device itself shows, so it is the one to trust.
+
+Command 41 is still read before writing, so switching the mode on or off keeps its other flags unchanged. It is fetched when needed rather than polled, which also saves a request per scan.
+
 # Version 1.5.0
 **Command 41 can be read.** Sent without data it answers with its two bytes, the flag byte and the duration in days, which corrects a wrong assumption in 1.4.0 and makes the holiday mode a proper entity.
 

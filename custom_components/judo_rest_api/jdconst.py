@@ -263,8 +263,7 @@ PARAMS_HOLIDAY_DAYS: dict = {
 
 PARAMS_HOLIDAY_START: dict = {
     "icon": "mdi:beach",
-    # Where the button takes the current flags and the number of days from.
-    "flags_item": "holiday_mode",
+    # Where the button takes the number of days from.
     "days_item": "holiday_days",
 }
 
@@ -341,9 +340,11 @@ REST_SYS_ITEMS: list[RestItem] = [
     RestItem( address_read="6900", read_bytes = 2, read_index=4, mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_FLOW, translation_key="water_flow"),
     RestItem( address_read="6900", read_bytes = 2, read_index=10, mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_TEMPERATURE, translation_key="water_temperature"),
 
-    # Command 41 answers a request without data with its flags and day count,
-    # so the holiday mode can be read as well as written.
-    RestItem( address_read="4100", read_bytes = 1, read_index=0, mformat=FORMATS.HOLIDAY, mtype=TYPES.BINARY_SENSOR, device=DEVICES.SYS, params=PARAMS_HOLIDAY, translation_key="holiday_mode"),
+    # The holiday mode runs exactly while scene 3 is the active one, which is
+    # command 69 byte 0 - the same answer the scene select reads, so this
+    # costs no extra request. Command 41 cannot say: read back it reports the
+    # stored configuration, not the running state.
+    RestItem( address_read="6900", read_bytes = 1, read_index=0, mformat=FORMATS.HOLIDAY, mtype=TYPES.BINARY_SENSOR, device=DEVICES.SYS, params=PARAMS_HOLIDAY, translation_key="holiday_mode"),
     RestItem(mformat=FORMATS.NUMBER, mtype=TYPES.NUMBER_LOCAL, device=DEVICES.SYS, params=PARAMS_HOLIDAY_DAYS, translation_key="holiday_days"),
     RestItem(address_write="4100", write_bytes = 2, write_index=0, mformat=FORMATS.BUTTON, mtype=TYPES.HOLIDAY_BUTTON, device=DEVICES.SYS, params=PARAMS_HOLIDAY_START, translation_key="holiday_start"),
 
