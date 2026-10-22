@@ -16,12 +16,14 @@ from .configentry import MyConfigEntry
 from .const import CONF, CONST, FORMATS, TYPES
 from .items import RestItem
 from .restobject import (
+    BASE_SCENE_NUMBER,
     ItemValue,
     JudoApiError,
     JudoAuthError,
     JudoDecodeError,
     RestAPI,
     RestObject,
+    active_scene,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -82,6 +84,7 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
         ]
         self._config_entry = p_config_entry
         self._cached_device_info: dict[str, Any] = {}
+        self._previous_scene: int | None = None
         self._translations: dict[str, str] | None = None
         # key -> (raw payload or None, message). Kept for diagnostics: an item
         # that fails to decode is the one whose payload you want to see.
@@ -250,8 +253,37 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
                 "; ".join(message for _, message in errors.values()),
             )
 
+        self._expire_scene_duration(data)
         await self._async_refresh_device_info()
         return data
+
+    def _expire_scene_duration(self, data: dict[str, ItemValue]) -> None:
+        """Clear the scene duration once the device falls back to its base scene.
+
+        The duration a scene was started with cannot be read back, so the
+        entity shows what was last sent from here. Once the device returns to
+        the base scene that duration is spent, and leaving it on display would
+        suggest a limit is running when none is.
+
+        Only the step into the base scene clears it, so a duration picked in
+        advance survives until it has been used.
+        """
+        scene_item = next(
+            (item for item in self._restitems if item.format is FORMATS.SCENE), None
+        )
+        if scene_item is None:
+            return
+        item_value = data.get(scene_item.key)
+        scene = active_scene(item_value.raw) if item_value else None
+        previous, self._previous_scene = self._previous_scene, scene
+
+        if scene != BASE_SCENE_NUMBER or previous in (None, BASE_SCENE_NUMBER):
+            return
+        duration_item = self.item_by_translation_key(
+            (scene_item.params or {}).get("duration_item")
+        )
+        if duration_item is not None and data.pop(duration_item.key, None) is not None:
+            _LOGGER.debug("Scene ended, cleared %s", duration_item.translation_key)
 
     async def _async_refresh_device_info(self) -> None:
         """Fill in device info that the first scan could not provide.
@@ -305,8 +337,10 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
             "serial_number": self._value_by_translation_key("device_number"),
         }
 
-    def item_by_translation_key(self, translation_key: str) -> RestItem | None:
+    def item_by_translation_key(self, translation_key: str | None) -> RestItem | None:
         """Look an item up by its translation key."""
+        if translation_key is None:
+            return None
         for item in self._restitems:
             if item.translation_key == translation_key:
                 return item

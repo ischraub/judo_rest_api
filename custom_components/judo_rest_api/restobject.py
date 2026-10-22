@@ -205,6 +205,17 @@ def _decode_date(field: str) -> date:
         raise JudoDecodeError(f"date: {day:02d}.{month:02d}.{year} is not a date") from err
 
 
+def active_scene(status_raw: str | None) -> int | None:
+    """Return the scene number command 69 reports as active."""
+    if not status_raw:
+        return None
+    try:
+        data = bytes.fromhex(status_raw)
+    except ValueError:
+        return None
+    return data[0] if data else None
+
+
 def holiday_flags(raw: str | None) -> int:
     """Return command 41's flag byte as the device reports it.
 

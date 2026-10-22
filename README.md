@@ -1,3 +1,12 @@
+# Version 1.7.0
+**The scene duration clears once it has been used.** A scene started for fifteen minutes returns to the base scene by itself, and from that moment no limit is running - but the duration select went on showing "15 minutes", which reads as if one were.
+
+It is now emptied the moment the device falls back to the base scene. Only that step clears it, so a duration picked in advance survives until it has been used, and switching between two timed scenes keeps it.
+
+Empty means no duration is in force, not that the default applies: a scene started with the field empty is sent the default of two hours, which the log records.
+
+This matters because the duration cannot be read back. Nothing in the API reports it, so the field can only ever show what was last sent from Home Assistant - a change made in the Judo app in the meantime stays invisible here.
+
 # Version 1.6.3
 **The scene duration no longer jumps back to its default.** A scan rebuilds the coordinator data from the items it reads, and the two values that live only in Home Assistant - the scene duration and the holiday days - were not among them, so a minute after being set they fell back to the default. The select then showed two hours when the user had chosen fifteen minutes, which reads as if two hours were in force.
 

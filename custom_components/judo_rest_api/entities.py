@@ -272,11 +272,13 @@ class MyLocalSelectEntity(MyEntity, SelectEntity, RestoreEntity):  # pylint: dis
 
     @property
     def current_option(self):
-        """Return the selected option."""
+        """Return the selected option, or nothing once it has been used.
+
+        Empty means no duration is in force, not that the default applies: a
+        scene started without one is sent the default, which the log records.
+        """
         value = self._item_value
-        if value in self._attr_options:
-            return value
-        return self._default if self._default in self._attr_options else None
+        return value if value in self._attr_options else None
 
     async def async_added_to_hass(self) -> None:
         """Restore the option that was selected before the restart."""
