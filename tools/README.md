@@ -180,6 +180,29 @@ agrees with it, which cross-checks both layouts against each other.
 Two caveats the document gets wrong: bytes 12-15 are listed as unused but came
 back `BA01` and `0C00` - little-endian 442 and 12. Meaning unknown.
 
+## Holiday mode (command 41)
+
+`4100` + flag byte + days. The flag byte is a **third** bit layout, not to be
+confused with the two in command 69:
+
+| Bit | Command 41 byte 0 | | Command 69 byte 1 | | Command 69 byte 2 |
+|---|---|---|---|---|---|
+| 0 | holiday active | | leakage_guard | `0x01` | flow rate |
+| 1 | unused | | max_water_flow | `0x02` | amount |
+| 2 | unused | | max_water_amount | `0x04` | time |
+| 3 | unused | | max_water_timing | `0x08` | micro leakage test |
+| 4 | unused | | time_control | `0x10` | close on micro leakage |
+| 5 | micro leakage: report **and close** | | **timer_holiday** | `0x20` | external sensors |
+| 6 | automatic micro leakage test | | timer_not_allowed | | |
+| 7 | leakage protection globally off | | is_favorite | | |
+
+Bit 5 means the holiday timer in one and a micro leakage option in the other,
+so the registers must not be copied into one another.
+
+Command 41 has no documented read; `--holiday` tries whether it has one
+anyway. It is not part of the default run, because sending a write command
+without data may be taken as a write of empty flags.
+
 ## HTTP errors the module returns
 
 Documented in the Smart Home manual (1702574, 2026/01), chapter 7:

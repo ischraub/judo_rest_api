@@ -17,9 +17,19 @@ from .configentry import MyConfigEntry
 from .const import CONF, CONST, FORMATS, TYPES
 from .coordinator import MyCoordinator
 from .items import RestItem
-from .restobject import JudoApiError, JudoDecodeError, RestObject
+from .restobject import (
+    JudoApiError,
+    JudoDecodeError,
+    RestObject,
+    holiday_is_active,
+    holiday_off_flags,
+)
 
 _LOGGER = logging.getLogger(__name__)
+
+# The scene the device runs in holiday mode. Command 36 neither starts nor
+# ends it; command 41 does.
+HOLIDAY_SCENE = "scene_holiday"
 
 
 class MyEntity(CoordinatorEntity[MyCoordinator]):
@@ -336,17 +346,50 @@ class MySceneEntity(MyEntity, SelectEntity):  # pylint: disable=W0223
         return number
 
     async def async_select_option(self, option: str) -> None:
-        """Activate the scene on the device."""
+        """Activate the scene on the device, leaving holiday mode if it runs.
+
+        Holiday mode is not started by command 36 and is not left by it
+        either, so picking any other scene while it runs would otherwise
+        change nothing: coming back from holiday, the scene you choose has to
+        end the mode first.
+        """
+        if option == HOLIDAY_SCENE:
+            raise HomeAssistantError(
+                "Holiday mode is not started through the scene select. "
+                "Start it at the device or in the Judo app; picking any other "
+                "scene here ends it."
+            )
         scene = self._rest_item.get_number_from_translation_key(option)
         if scene is None or scene < 0:
             raise HomeAssistantError(f"Unknown water scene {option!r}")
         duration = self._duration()
         ro = RestObject(self._rest_api, self._rest_item)
+
+        status = self._coordinator.raw_of(self._rest_item.key)
+        left_holiday = False
+        if holiday_is_active(status):
+            try:
+                await ro.async_end_holiday(holiday_off_flags(status))
+            except (JudoApiError, JudoDecodeError) as err:
+                raise HomeAssistantError(
+                    f"Could not leave holiday mode: {err}"
+                ) from err
+            left_holiday = True
+
         try:
             await ro.async_activate_scene(scene, duration)
+            _LOGGER.info("Activated water scene %s for 0x%04X", option, duration)
         except (JudoApiError, JudoDecodeError) as err:
-            raise HomeAssistantError(
-                f"Could not activate {option}: {err}"
-            ) from err
-        _LOGGER.info("Activated water scene %s for 0x%04X", option, duration)
+            if not left_holiday:
+                raise HomeAssistantError(
+                    f"Could not activate {option}: {err}"
+                ) from err
+            # Leaving holiday mode already returns the device to its base
+            # scene, so the request did what it was for even if the device
+            # refused this particular scene afterwards.
+            _LOGGER.warning(
+                "Left holiday mode, but the device refused scene %s: %s",
+                option,
+                err,
+            )
         await self._coordinator.async_request_refresh()

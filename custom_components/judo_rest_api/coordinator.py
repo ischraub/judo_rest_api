@@ -118,6 +118,13 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
         item_value = self.data.get(key)
         return item_value.value if item_value else None
 
+    def raw_of(self, key: str) -> str | None:
+        """Return the raw payload an item was last decoded from."""
+        if not self.data:
+            return None
+        item_value = self.data.get(key)
+        return item_value.raw if item_value else None
+
     def has_value(self, key: str) -> bool:
         """Return whether the last scan produced a value for an item."""
         return bool(self.data) and key in self.data

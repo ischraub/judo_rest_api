@@ -189,6 +189,31 @@ def describe_status(raw: str) -> str:
     )
 
 
+def read_holiday(base_url: str, auth_header: str, timeout: float, delay: float) -> None:
+    """Try whether command 41 has a read form.
+
+    Commands 3E, 3F and 40 are documented as "ohne Data liefert aktuellen Wert
+    des Geraetes zurueck", and 41's length column reads "0/1", so it may do
+    the same. If it does, the holiday flags can be read back and written with
+    only the holiday bit cleared, instead of being rebuilt from command 69.
+
+    Not part of the default run: 41 is a write command, and sending it without
+    data may be taken as a write of empty flags, which would end holiday mode.
+    """
+    print("\nKommando 41 ohne Daten (Leseversuch):")
+    try:
+        data = fetch(base_url, "4100", auth_header, timeout, delay)
+    except FETCH_ERRORS as err:
+        print(f"  4100  !! {err}")
+        print("  -> kein Lesezugriff; die Flags muessen aus 6900 abgeleitet werden")
+        return
+    print(f"  4100  {data}")
+    if data:
+        b = bytes.fromhex(data)
+        print(f"  -> {len(b)} Byte. Byte 0 waeren die Flags: 0x{b[0]:02X}"
+              + (f", Byte 1 Urlaubstage: {b[1]}" if len(b) > 1 else ""))
+
+
 def read_scenes(
     base_url: str, auth_header: str, timeout: float, delay: float
 ) -> None:
@@ -227,6 +252,11 @@ def main() -> int:
         help="also query the statistics commands for today's date",
     )
     parser.add_argument(
+        "--holiday",
+        action="store_true",
+        help="try whether command 41 can be read (may end holiday mode)",
+    )
+    parser.add_argument(
         "--scenes",
         action="store_true",
         help="also read the scene settings (i-soft PRO family only)",
@@ -255,6 +285,8 @@ def main() -> int:
         if command == "6900":
             print(f"{'':{width}}  {'':4}  {describe_status(data)}")
 
+    if args.holiday:
+        read_holiday(base_url, auth_header, args.timeout, args.delay)
     if args.scenes:
         read_scenes(base_url, auth_header, args.timeout, args.delay)
     return 0

@@ -29,6 +29,21 @@ _LOGGER = logging.getLogger(__name__)
 # 33 is 0x21, which is a printable "!".
 PRO_FAMILY = frozenset({"58", "4B", "4C"})
 
+# Command 69 byte 1, "Aktive Szenenoptionen".
+SCENE_OPTION_HOLIDAY = 0x20
+
+# Command 69 byte 2, "Globaler Leckageschutzstatus".
+LEAK_STATUS_MICRO_TEST = 0x08
+LEAK_STATUS_MICRO_CLOSE = 0x10
+
+# Command 41 byte 0. A different layout from either of the above: its bit 5 is
+# the micro leakage option, while bit 5 of command 69's byte 1 is the holiday
+# timer. The three registers must not be copied into one another.
+HOLIDAY_FLAG_ACTIVE = 0x01
+HOLIDAY_FLAG_MICRO_CLOSE = 0x20
+HOLIDAY_FLAG_MICRO_AUTOTEST = 0x40
+HOLIDAY_FLAG_PROTECTION_OFF = 0x80
+
 # Statuses worth a second attempt rather than an immediate failure. 429 is
 # documented by Judo: the module answers it with "Retry-After: 2" when the
 # device control does not reply within 1.5 s.
@@ -174,6 +189,46 @@ def _decode_date(field: str) -> date:
         return date(year, month, day)
     except ValueError as err:
         raise JudoDecodeError(f"date: {day:02d}.{month:02d}.{year} is not a date") from err
+
+
+def holiday_is_active(status_raw: str | None) -> bool:
+    """Return whether command 69 reports the holiday timer as running."""
+    if not status_raw:
+        return False
+    try:
+        data = bytes.fromhex(status_raw)
+    except ValueError:
+        return False
+    return len(data) >= 2 and bool(data[1] & SCENE_OPTION_HOLIDAY)
+
+
+def holiday_off_flags(status_raw: str | None) -> int:
+    """Build command 41's flag byte with the holiday bit cleared.
+
+    Command 41 has no documented read, so the other flags it carries are
+    rebuilt from the leakage protection status in command 69 byte 2, where the
+    two micro leakage options correspond by name.
+
+    Bit 7, "Leckagealarm/schutz global AUS", is never set. Command 69 does not
+    report it in a form that can be read back, and of the two possible
+    mistakes - leaving leakage protection on when it was globally off, or
+    switching it off when it was on - only the first is safe.
+    """
+    leak = 0
+    if status_raw:
+        try:
+            data = bytes.fromhex(status_raw)
+        except ValueError:
+            data = b""
+        if len(data) >= 3:
+            leak = data[2]
+
+    flags = 0
+    if leak & LEAK_STATUS_MICRO_CLOSE:
+        flags |= HOLIDAY_FLAG_MICRO_CLOSE
+    if leak & LEAK_STATUS_MICRO_TEST:
+        flags |= HOLIDAY_FLAG_MICRO_AUTOTEST
+    return flags
 
 
 def decode_item(
@@ -402,6 +457,16 @@ class RestObject:
     async def async_press(self) -> None:
         """Trigger a button item."""
         await self._rest_api.async_set(self._rest_item.address_write, "")
+
+    async def async_end_holiday(self, flags: int) -> None:
+        """Switch the holiday mode off, keeping the other options it carries.
+
+        Command 41 takes the flag byte and a duration in days; zero days with
+        the active bit cleared ends it.
+        """
+        flags &= ~HOLIDAY_FLAG_ACTIVE
+        _LOGGER.info("Ending holiday mode, writing flags 0x%02X", flags)
+        await self._rest_api.async_set(CONST.HOLIDAY_COMMAND, f"{flags:02X}00")
 
     async def async_activate_scene(self, scene: int, duration: int) -> None:
         """Activate a water scene for a duration.

@@ -1,3 +1,10 @@
+# Version 1.4.0
+**Choosing a scene now leaves holiday mode.** Holiday mode is not started by command 36 and is not left by it either, so coming back from holiday and picking a scene used to change nothing. The scene select now checks command 69 first and, if the holiday timer is running, switches it off with command 41 before activating the scene you picked.
+
+Holiday mode itself is still started at the device or in the Judo app, not here - command 41 takes a duration in days where the scene duration is in hours. Picking "Holiday" in the select says so rather than failing silently.
+
+Command 41 has no documented read, so the other options it carries - the two micro leakage settings - are rebuilt from the leakage protection status in command 69 byte 2, where they correspond by name. Its bit 7, "leakage protection globally off", is **never set**: command 69 does not report it in a form that can be read back, and of the two possible mistakes only leaving protection on is safe. `tools/judo_rest_probe.py --holiday` tries whether command 41 can be read after all, which would make the rebuild unnecessary.
+
 # Version 1.3.3
 * The software version's third byte is interpreted by **device family**, not by whether the byte happens to be printable. On the i-soft PRO family it is a number, elsewhere a letter. The old guess survived 1.5.32 only because `0x20` is a space: 1.5.33 would have rendered as "1.05!", and 1.5.48 as "1.050".
 
