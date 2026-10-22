@@ -1,3 +1,8 @@
+# Version 1.6.1
+**Command 41 only starts the holiday mode; it has no "off".** Written with the active bit cleared the device answers HTTP 500, "invalid argument" - `/api/rest/41000002` was refused where `/api/rest/41000102` had been accepted a moment earlier. Leaving holiday mode through it failed, so switching away from the holiday scene raised an error instead of switching.
+
+The mode ends by activating another scene, which is what the device does anyway: it runs the holiday mode exactly while that scene is active. Choosing another scene now simply sends command 36.
+
 # Version 1.6.0
 **The holiday mode is one of the scenes, so it is picked like one.** Choosing "Urlaub genießen" starts it for the days set next to the scene; choosing anything else ends it and runs that scene instead.
 

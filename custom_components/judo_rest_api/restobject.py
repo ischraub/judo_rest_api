@@ -214,40 +214,6 @@ def holiday_flags(raw: str | None) -> int:
     return data[0] if data else 0
 
 
-def holiday_days(raw: str | None) -> int:
-    """Return the holiday duration in days that command 41 reports."""
-    if not raw:
-        return 0
-    try:
-        data = bytes.fromhex(raw)
-    except ValueError:
-        return 0
-    return data[1] if len(data) > 1 else 0
-
-
-def active_scene(status_raw: str | None) -> int | None:
-    """Return the scene number command 69 reports as active."""
-    if not status_raw:
-        return None
-    try:
-        data = bytes.fromhex(status_raw)
-    except ValueError:
-        return None
-    return data[0] if data else None
-
-
-def holiday_is_active(status_raw: str | None) -> bool:
-    """Return whether the device is running the holiday mode.
-
-    Decided by the active scene in command 69 byte 0, not by command 41. Two
-    earlier readings were wrong: byte 1 of command 69 mirrors the options of
-    the active scene rather than the device mode, and command 41 read back
-    reports the stored configuration, which says "active" on a device whose
-    holiday mode is off.
-    """
-    return active_scene(status_raw) == HOLIDAY_SCENE_NUMBER
-
-
 def decode_item(
     rest_item: RestItem, raw: str, divider: float = 1, devicetype: str | None = None
 ) -> Any:
@@ -478,7 +444,13 @@ class RestObject:
         await self._rest_api.async_set(self._rest_item.address_write, "")
 
     async def async_write_holiday(self, flags: int, days: int) -> None:
-        """Write command 41: the flag byte and a duration in days."""
+        """Write command 41: the flag byte and a duration in days.
+
+        Command 41 only starts the mode. Writing it with the active bit
+        cleared is refused with HTTP 500, "invalid argument" - there is no
+        "off" through this command. The mode ends when another scene is
+        activated with command 36.
+        """
         if not 0 <= days <= 0xFF:
             raise JudoApiError(f"holiday duration {days} out of range")
         _LOGGER.info("Writing holiday mode flags 0x%02X, %s day(s)", flags, days)
@@ -498,17 +470,6 @@ class RestObject:
         except JudoApiError as err:
             _LOGGER.warning("Could not read the holiday configuration: %s", err)
             return None
-
-    async def async_end_holiday(self) -> None:
-        """Switch the holiday mode off, changing nothing else.
-
-        The flags and the day count go back exactly as the device reported
-        them, with only the active bit cleared.
-        """
-        raw = await self.async_read_holiday()
-        await self.async_write_holiday(
-            holiday_flags(raw) & ~HOLIDAY_FLAG_ACTIVE, holiday_days(raw)
-        )
 
     async def async_start_holiday(self, days: int) -> None:
         """Switch the holiday mode on for a number of days."""

@@ -217,6 +217,13 @@ candidates works:
 Command 41 is still worth reading before writing it, so the other flags it
 carries go back unchanged.
 
+**Command 41 only starts the mode.** Written with the active bit cleared the
+device answers HTTP 500, "invalid argument": `/api/rest/41000002` was refused
+where `/api/rest/41000102` had been accepted a moment earlier. The document
+agrees in hindsight - the row is "Urlaubsmodus schreiben", the description
+begins "Start Urlaubsmodus", and its only example activates. The mode ends by
+activating another scene with command 36.
+
 ## HTTP errors the module returns
 
 Documented in the Smart Home manual (1702574, 2026/01), chapter 7:
