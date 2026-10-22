@@ -75,6 +75,11 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
         self._rest_api = my_api
         self._restitems = api_items
         self._readable = [item for item in api_items if self._is_readable(item)]
+        # Items with no address to read: their value is set in Home Assistant
+        # and has to survive a scan, which rebuilds the data from scratch.
+        self._local_keys = [
+            item.key for item in api_items if not self._is_readable(item)
+        ]
         self._config_entry = p_config_entry
         self._cached_device_info: dict[str, Any] = {}
         self._translations: dict[str, str] | None = None
@@ -172,7 +177,14 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
         goes unavailable; it must not keep the previous reading, which would
         be indistinguishable from a fresh one.
         """
-        data: dict[str, ItemValue] = {}
+        # Carry the locally held values over. A scan only produces entries
+        # for the items it reads, so without this the scene duration and the
+        # holiday days would drop back to their defaults a minute after being
+        # set - showing a value the user never chose.
+        previous = self.data or {}
+        data: dict[str, ItemValue] = {
+            key: previous[key] for key in self._local_keys if key in previous
+        }
         errors: dict[str, tuple[str | None, str]] = {}
         raw_cache: dict[str, tuple[str | None, JudoApiError | None]] = {}
         deadline = monotonic() + self._budget
@@ -221,7 +233,7 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
 
         self._last_errors = errors
 
-        if not data:
+        if not any(key not in self._local_keys for key in data):
             raise UpdateFailed(
                 "No value could be read from the Judo device: "
                 + (

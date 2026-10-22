@@ -1,3 +1,13 @@
+# Version 1.6.3
+**The scene duration no longer jumps back to its default.** A scan rebuilds the coordinator data from the items it reads, and the two values that live only in Home Assistant - the scene duration and the holiday days - were not among them, so a minute after being set they fell back to the default. The select then showed two hours when the user had chosen fifteen minutes, which reads as if two hours were in force.
+
+Both values are carried over between scans now.
+
+Two things confirmed on a device in the meantime, neither needing a change:
+
+* **The duration is applied.** A scene activated for fifteen minutes returned to the base scene by itself. The Judo app shows no duration for a scene activated over the local API because it takes that from Judo's portal, which never sees a local activation - so the app saying nothing is not the integration failing to set it.
+* **"Alltag meistern" can be activated**, although the document gives command 36's scene range as "1...9 + A". The device also reports it as the one scene whose `timer_not_allowed` bit is set, which is what 1.6.2 relies on.
+
 # Version 1.6.2
 **"Alltag meistern" has no duration.** It is the base scene the device falls back to and runs until something replaces it, which is why the Judo app offers no duration for it. It was being sent with whatever the duration select happened to hold - two hours by default - and is now always sent as "unendlich".
 
