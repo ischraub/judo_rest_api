@@ -63,7 +63,7 @@
         "name": "Salzvorrat Masse gesamt"
       },
       "holiday_days": {
-        "name": "Urlaubstage"
+        "name": "Wasserszene Urlaubstage"
       }
     },
     "button": {
@@ -75,9 +75,6 @@
       },
       "start_regeneration": {
         "name": "Regeneration starten"
-      },
-      "holiday_start": {
-        "name": "Urlaubsmodus starten"
       }
     },
     "select": {

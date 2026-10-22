@@ -20,6 +20,9 @@ RETIRED_UNIQUE_ID_SUFFIXES = (
     "_operating_minutes",
     "_operating_hours",
     "_operating_days",
+    # 1.5.0/1.5.1 only. The holiday mode is one of the scenes, so it is
+    # started by picking it rather than by a button of its own.
+    "_holiday_start",
 )
 
 PLATFORMS: list[str] = [
@@ -62,7 +65,8 @@ async def _async_remove_retired_entities(
 
     operating_minutes / operating_hours / operating_days were three sensors for
     three fields of one counter, so "operating hours" only showed the 0..23
-    remainder. They are replaced by operating_time. Without removing them they
+    remainder; they are replaced by operating_time. holiday_start was a button
+    that did what picking the holiday scene does. Without removing them they
     would stay in the registry forever as unavailable leftovers.
     """
     registry = er.async_get(hass)

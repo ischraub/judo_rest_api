@@ -8,7 +8,6 @@ from .coordinator import MyCoordinator
 from .entities import (
     MyBinarySensorEntity,
     MyButtonEntity,
-    MyHolidayButtonEntity,
     MyLocalNumberEntity,
     MyLocalSelectEntity,
     MyNumberEntity,
@@ -72,10 +71,6 @@ async def build_entity_list(
                 case TYPES.BUTTON:
                     entries.append(
                         MyButtonEntity(config_entry, item, coordinator, index)
-                    )
-                case TYPES.HOLIDAY_BUTTON:
-                    entries.append(
-                        MyHolidayButtonEntity(config_entry, item, coordinator, index)
                     )
                 case TYPES.NUMBER_LOCAL:
                     entries.append(

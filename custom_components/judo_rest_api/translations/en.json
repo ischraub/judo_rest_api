@@ -63,7 +63,7 @@
         "name": "Salt storage mass total"
       },
       "holiday_days": {
-        "name": "Holiday days"
+        "name": "Water scene holiday days"
       }
     },
     "button": {
@@ -75,9 +75,6 @@
       },
       "start_regeneration": {
         "name": "Start regeneration"
-      },
-      "holiday_start": {
-        "name": "Start holiday mode"
       }
     },
     "select": {

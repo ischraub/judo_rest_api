@@ -261,16 +261,12 @@ PARAMS_HOLIDAY_DAYS: dict = {
     "stateclass": None,
 }
 
-PARAMS_HOLIDAY_START: dict = {
-    "icon": "mdi:beach",
-    # Where the button takes the number of days from.
-    "days_item": "holiday_days",
-}
-
 PARAMS_SCENE: dict = {
     "icon": "mdi:water-sync",
-    # Which item holds the duration to send along with the scene.
+    # Which items hold the two durations a scene can need: hours for an
+    # ordinary scene, days for "Urlaub geniessen".
     "duration_item": "water_scene_duration",
+    "days_item": "holiday_days",
 }
 
 PARAMS_SCENE_DURATION: dict = {
@@ -346,7 +342,6 @@ REST_SYS_ITEMS: list[RestItem] = [
     # stored configuration, not the running state.
     RestItem( address_read="6900", read_bytes = 1, read_index=0, mformat=FORMATS.HOLIDAY, mtype=TYPES.BINARY_SENSOR, device=DEVICES.SYS, params=PARAMS_HOLIDAY, translation_key="holiday_mode"),
     RestItem(mformat=FORMATS.NUMBER, mtype=TYPES.NUMBER_LOCAL, device=DEVICES.SYS, params=PARAMS_HOLIDAY_DAYS, translation_key="holiday_days"),
-    RestItem(address_write="4100", write_bytes = 2, write_index=0, mformat=FORMATS.BUTTON, mtype=TYPES.HOLIDAY_BUTTON, device=DEVICES.SYS, params=PARAMS_HOLIDAY_START, translation_key="holiday_start"),
 
     RestItem(mformat=FORMATS.SCENE_DURATION, mtype=TYPES.SELECT_LOCAL, device=DEVICES.SYS, resultlist=SCENE_DURATION_LIST, params=PARAMS_SCENE_DURATION, translation_key="water_scene_duration"),
 

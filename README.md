@@ -1,3 +1,10 @@
+# Version 1.6.0
+**The holiday mode is one of the scenes, so it is picked like one.** Choosing "Urlaub genießen" starts it for the days set next to the scene; choosing anything else ends it and runs that scene instead.
+
+The separate **Start holiday mode** button from 1.5.0 is gone. It only existed because the holiday duration is counted in days where the scene duration is in hours, which is a detail of the device, not a reason to split one choice across two controls. The button is removed from the entity registry on upgrade.
+
+The three controls now sort together: **Water scene**, **Water scene duration** (hours, for the ordinary scenes) and **Water scene holiday days** (1 to 60).
+
 # Version 1.5.1
 **The holiday mode is read from the active scene.** It runs exactly while scene 3, "Urlaub genießen", is the active one, which is command 69 byte 0.
 

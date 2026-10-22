@@ -292,12 +292,12 @@ class MyLocalSelectEntity(MyEntity, SelectEntity, RestoreEntity):  # pylint: dis
 
 
 class MySceneEntity(MyEntity, SelectEntity):  # pylint: disable=W0223
-    """Activate a water scene for a duration.
+    """Pick the water scene the device runs.
 
-    Write only. The API has no command that reports which scene is running, so
-    what this shows is the scene last activated from here, not a reading from
-    the device - it says nothing about whether that scene is still running or
-    was changed at the device itself.
+    "Urlaub geniessen" is a scene like the others here, even though the device
+    starts it with its own command and counts its duration in days rather than
+    hours. Switching to it starts the holiday mode, switching away ends it, so
+    the scene is the single place where this is steered.
     """
 
     def __init__(
@@ -347,43 +347,66 @@ class MySceneEntity(MyEntity, SelectEntity):  # pylint: disable=W0223
             raise HomeAssistantError(f"Unknown scene duration {option!r}")
         return number
 
-    async def async_select_option(self, option: str) -> None:
-        """Activate the scene on the device, leaving holiday mode if it runs.
-
-        Holiday mode is not started by command 36 and is not left by it
-        either, so picking any other scene while it runs would otherwise
-        change nothing: coming back from holiday, the scene you choose has to
-        end the mode first.
-        """
-        if option == HOLIDAY_SCENE:
+    def _holiday_days(self) -> int:
+        """Return the holiday duration in days, from the sibling item."""
+        name = (self._rest_item.params or {}).get("days_item")
+        item = self._coordinator.item_by_translation_key(name) if name else None
+        if item is None:
+            raise HomeAssistantError(f"No holiday duration item {name!r} configured")
+        value = self._coordinator.value_of(item.key)
+        if value is None:
+            value = (item.params or {}).get("default", 1)
+        days = int(float(value))
+        if not 1 <= days <= 60:
             raise HomeAssistantError(
-                "Holiday mode is not started through the scene select. "
-                "Start it at the device or in the Judo app; picking any other "
-                "scene here ends it."
+                f"Holiday duration {days} is not between 1 and 60 days"
             )
+        return days
+
+    async def async_select_option(self, option: str) -> None:
+        """Run the chosen scene, starting or ending the holiday mode with it.
+
+        The holiday mode is the "Urlaub geniessen" scene: the device runs it
+        exactly while that scene is active. It has its own command because its
+        duration is in days, but from here it is one more scene to pick.
+        """
+        ro = RestObject(self._rest_api, self._rest_item)
+        # The scene item reads command 69 itself, so its raw answer already
+        # says which scene is running.
+        was_holiday = holiday_is_active(
+            self._coordinator.raw_of(self._rest_item.key)
+        )
+
+        if option == HOLIDAY_SCENE:
+            days = self._holiday_days()
+            try:
+                await ro.async_start_holiday(days)
+            except (JudoApiError, JudoDecodeError) as err:
+                raise HomeAssistantError(
+                    f"Could not start holiday mode: {err}"
+                ) from err
+            _LOGGER.info("Started holiday mode for %s day(s)", days)
+            await self._coordinator.async_request_refresh()
+            return
+
         scene = self._rest_item.get_number_from_translation_key(option)
         if scene is None or scene < 0:
             raise HomeAssistantError(f"Unknown water scene {option!r}")
         duration = self._duration()
-        ro = RestObject(self._rest_api, self._rest_item)
 
-        # The scene item reads command 69 itself, so its raw answer already
-        # says which scene is running.
-        left_holiday = False
-        if holiday_is_active(self._coordinator.raw_of(self._rest_item.key)):
+        if was_holiday:
             try:
                 await ro.async_end_holiday()
             except (JudoApiError, JudoDecodeError) as err:
                 raise HomeAssistantError(
                     f"Could not leave holiday mode: {err}"
                 ) from err
-            left_holiday = True
 
         try:
             await ro.async_activate_scene(scene, duration)
             _LOGGER.info("Activated water scene %s for 0x%04X", option, duration)
         except (JudoApiError, JudoDecodeError) as err:
-            if not left_holiday:
+            if not was_holiday:
                 raise HomeAssistantError(
                     f"Could not activate {option}: {err}"
                 ) from err
@@ -391,9 +414,7 @@ class MySceneEntity(MyEntity, SelectEntity):  # pylint: disable=W0223
             # scene, so the request did what it was for even if the device
             # refused this particular scene afterwards.
             _LOGGER.warning(
-                "Left holiday mode, but the device refused scene %s: %s",
-                option,
-                err,
+                "Left holiday mode, but the device refused scene %s: %s", option, err
             )
         await self._coordinator.async_request_refresh()
 
@@ -443,31 +464,3 @@ class MyLocalNumberEntity(MyEntity, NumberEntity, RestoreEntity):  # pylint: dis
     async def async_set_native_value(self, value: float) -> None:
         """Remember the value."""
         self._coordinator.async_set_value(self._rest_item.key, value)
-
-
-class MyHolidayButtonEntity(MyEntity, ButtonEntity):  # pylint: disable=W0223
-    """Start the holiday mode for the number of days held in Home Assistant.
-
-    Command 41 takes its duration in days, which is why this cannot be one of
-    the scenes: the scene duration is in hours.
-    """
-
-    async def async_press(self):
-        """Switch the holiday mode on."""
-        params = self._rest_item.params or {}
-        days_item = self._coordinator.item_by_translation_key(params.get("days_item"))
-        if days_item is None:
-            raise HomeAssistantError("No holiday duration configured")
-        raw_days = self._coordinator.value_of(days_item.key)
-        if raw_days is None:
-            raw_days = (days_item.params or {}).get("default", 1)
-        days = int(float(raw_days))
-        if not 1 <= days <= 60:
-            raise HomeAssistantError(f"Holiday duration {days} is not between 1 and 60 days")
-
-        ro = RestObject(self._rest_api, self._rest_item)
-        try:
-            await ro.async_start_holiday(days)
-        except (JudoApiError, JudoDecodeError) as err:
-            raise HomeAssistantError(f"Could not start holiday mode: {err}") from err
-        await self._coordinator.async_request_refresh()

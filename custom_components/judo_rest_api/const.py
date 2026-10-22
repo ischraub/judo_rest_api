@@ -90,8 +90,6 @@ class TypeConstants:
     # A number whose value never leaves Home Assistant.
     NUMBER_LOCAL = "Number_local"
     BINARY_SENSOR = "Binary_sensor"
-    # Starts the holiday mode from the locally held number of days.
-    HOLIDAY_BUTTON = "Holiday_button"
     NUMBER = "Number"
     NUMBER_RO = "Number_RO"
     BUTTON = "Button"
