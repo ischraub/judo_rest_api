@@ -126,6 +126,13 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
         item_value = self.data.get(key)
         return item_value.value if item_value else None
 
+    def active_scene_number(self) -> int | None:
+        """Return the scene number the device reports as active."""
+        scene_item = next(
+            (item for item in self._restitems if item.format is FORMATS.SCENE), None
+        )
+        return active_scene(self.raw_of(scene_item.key)) if scene_item else None
+
     def raw_of(self, key: str) -> str | None:
         """Return the raw payload an item was last decoded from."""
         if not self.data:

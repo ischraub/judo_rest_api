@@ -271,6 +271,9 @@ PARAMS_SCENE: dict = {
 
 PARAMS_SCENE_DURATION: dict = {
     "icon": "mdi:timer-sand",
+    # The duration is spent once the device falls back to its base scene, so
+    # it is neither kept then nor restored after a restart.
+    "clear_on_base_scene": True,
     # Used until the user picks one; two hours rather than "unlimited", which
     # would leave a bypass scene running with leakage protection off.
     "default": "duration_2_h",

@@ -281,9 +281,19 @@ class MyLocalSelectEntity(MyEntity, SelectEntity, RestoreEntity):  # pylint: dis
         return value if value in self._attr_options else None
 
     async def async_added_to_hass(self) -> None:
-        """Restore the option that was selected before the restart."""
+        """Restore the option that was selected before the restart.
+
+        Not when the value is spent. A duration only applies while a timed
+        scene runs, so restoring one while the device sits on its base scene
+        would put a limit on display that is not in force - which is how a
+        default shown by an older version came back looking like a choice.
+        """
         await super().async_added_to_hass()
         if self._item_value is not None:
+            return
+        if (self._rest_item.params or {}).get("clear_on_base_scene") and (
+            self._coordinator.active_scene_number() == BASE_SCENE_NUMBER
+        ):
             return
         last_state = await self.async_get_last_state()
         if last_state is not None and last_state.state in self._attr_options:

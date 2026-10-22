@@ -1,3 +1,10 @@
+# Version 1.7.1
+**A spent duration is no longer restored after a restart.** Up to 1.6.3 the duration select displayed its default when nothing was set, and Home Assistant recorded that as the entity's state. On the first restart after upgrading, `RestoreEntity` brought it back as though it had been chosen - so a device sitting on the base scene showed "2 hours" where 1.7.0 means to show nothing.
+
+The value is only restored while a timed scene is running. On the base scene nothing is in force, so there is nothing to restore - the same rule 1.7.0 applies while running.
+
+This clears the leftover by itself on the next restart. The holiday days are unaffected; they are a standing setting, not a value that gets used up.
+
 # Version 1.7.0
 **The scene duration clears once it has been used.** A scene started for fifteen minutes returns to the base scene by itself, and from that moment no limit is running - but the duration select went on showing "15 minutes", which reads as if one were.
 
