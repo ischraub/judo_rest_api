@@ -23,6 +23,7 @@ RETIRED_UNIQUE_ID_SUFFIXES = (
 )
 
 PLATFORMS: list[str] = [
+    "binary_sensor",
     "number",
     "select",
     "sensor",

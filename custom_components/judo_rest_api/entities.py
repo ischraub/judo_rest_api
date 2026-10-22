@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.components.button import ButtonEntity
 from homeassistant.components.number import NumberEntity
 from homeassistant.components.select import SelectEntity
@@ -22,7 +23,6 @@ from .restobject import (
     JudoDecodeError,
     RestObject,
     holiday_is_active,
-    holiday_off_flags,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -30,6 +30,9 @@ _LOGGER = logging.getLogger(__name__)
 # The scene the device runs in holiday mode. Command 36 neither starts nor
 # ends it; command 41 does.
 HOLIDAY_SCENE = "scene_holiday"
+
+# The item that reads command 41, i.e. the holiday mode itself.
+HOLIDAY_ITEM = "holiday_mode"
 
 
 class MyEntity(CoordinatorEntity[MyCoordinator]):
@@ -87,6 +90,7 @@ class MyEntity(CoordinatorEntity[MyCoordinator]):
                 | FORMATS.DATE
                 | FORMATS.SW_VERSION
                 | FORMATS.SERIAL
+                | FORMATS.HOLIDAY
                 | FORMATS.BUTTON
             ):
                 # Not numeric: no unit, no state class, no min/max.
@@ -365,11 +369,11 @@ class MySceneEntity(MyEntity, SelectEntity):  # pylint: disable=W0223
         duration = self._duration()
         ro = RestObject(self._rest_api, self._rest_item)
 
-        status = self._coordinator.raw_of(self._rest_item.key)
+        holiday_raw = self._coordinator.raw_by_translation_key(HOLIDAY_ITEM)
         left_holiday = False
-        if holiday_is_active(status):
+        if holiday_is_active(holiday_raw):
             try:
-                await ro.async_end_holiday(holiday_off_flags(status))
+                await ro.async_end_holiday(holiday_raw)
             except (JudoApiError, JudoDecodeError) as err:
                 raise HomeAssistantError(
                     f"Could not leave holiday mode: {err}"
@@ -392,4 +396,80 @@ class MySceneEntity(MyEntity, SelectEntity):  # pylint: disable=W0223
                 option,
                 err,
             )
+        await self._coordinator.async_request_refresh()
+
+
+class MyBinarySensorEntity(MyEntity, BinarySensorEntity):
+    """A yes/no reading from the device."""
+
+    @property
+    def is_on(self):
+        """Return the reading."""
+        return self._item_value
+
+
+class MyLocalNumberEntity(MyEntity, NumberEntity, RestoreEntity):  # pylint: disable=W0223
+    """A number whose value never leaves Home Assistant.
+
+    The holiday duration is not a device setting until the mode is started, so
+    it is held here and restored after a restart.
+    """
+
+    @property
+    def available(self) -> bool:
+        """Always available: this value does not come from the device."""
+        return True
+
+    @property
+    def native_value(self):
+        """Return the number."""
+        value = self._item_value
+        return value if value is not None else (self._rest_item.params or {}).get("default")
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the value that was set before the restart."""
+        await super().async_added_to_hass()
+        if self._item_value is not None:
+            return
+        last_state = await self.async_get_last_state()
+        if last_state is None:
+            return
+        try:
+            self._coordinator.async_set_value(
+                self._rest_item.key, float(last_state.state)
+            )
+        except (TypeError, ValueError):
+            pass
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Remember the value."""
+        self._coordinator.async_set_value(self._rest_item.key, value)
+
+
+class MyHolidayButtonEntity(MyEntity, ButtonEntity):  # pylint: disable=W0223
+    """Start the holiday mode for the number of days held in Home Assistant.
+
+    Command 41 takes its duration in days, which is why this cannot be one of
+    the scenes: the scene duration is in hours.
+    """
+
+    async def async_press(self):
+        """Switch the holiday mode on."""
+        params = self._rest_item.params or {}
+        days_item = self._coordinator.item_by_translation_key(params.get("days_item"))
+        if days_item is None:
+            raise HomeAssistantError("No holiday duration configured")
+        raw_days = self._coordinator.value_of(days_item.key)
+        if raw_days is None:
+            raw_days = (days_item.params or {}).get("default", 1)
+        days = int(float(raw_days))
+        if not 1 <= days <= 60:
+            raise HomeAssistantError(f"Holiday duration {days} is not between 1 and 60 days")
+
+        holiday_raw = self._coordinator.raw_by_translation_key(params.get("flags_item"))
+        ro = RestObject(self._rest_api, self._rest_item)
+        try:
+            await ro.async_start_holiday(holiday_raw, days)
+        except (JudoApiError, JudoDecodeError) as err:
+            raise HomeAssistantError(f"Could not start holiday mode: {err}") from err
         await self._coordinator.async_request_refresh()

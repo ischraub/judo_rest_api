@@ -36,5 +36,12 @@ async def async_setup_entry(
             item_type=TYPES.NUMBER,
             coordinator=coordinator,
         )
+        entries = await build_entity_list(
+            entries=entries,
+            config_entry=config_entry,
+            rest_items=device,
+            item_type=TYPES.NUMBER_LOCAL,
+            coordinator=coordinator,
+        )
 
     async_add_entities(entries)

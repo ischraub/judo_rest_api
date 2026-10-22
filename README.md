@@ -1,3 +1,17 @@
+# Version 1.5.0
+**Command 41 can be read.** Sent without data it answers with its two bytes, the flag byte and the duration in days, which corrects a wrong assumption in 1.4.0 and makes the holiday mode a proper entity.
+
+* **1.4.0 read the holiday state from the wrong place.** It took bit 5 of command 69 byte 1, but that byte mirrors the options of the *active scene*: the bit says this scene has no holiday timer, not that the device has none. On a device sitting on scene 0 with the holiday mode switched on, 1.4.0 saw it as off and left it running. The state now comes from command 41 itself.
+* Switching the holiday mode off writes the flags and the day count back **exactly as the device reported them**, with only the active bit cleared. 1.4.0 rebuilt them from command 69, which risked silently turning other options off.
+
+Three new entities:
+
+* **Holiday mode** - a binary sensor, on while the device runs it.
+* **Holiday days** - 1 to 60, held in Home Assistant and restored after a restart.
+* **Start holiday mode** - a button. It takes the day count from the number above and keeps the other flags the device reports.
+
+Choosing any other scene still ends the holiday mode, now on a correct reading of it.
+
 # Version 1.4.0
 **Choosing a scene now leaves holiday mode.** Holiday mode is not started by command 36 and is not left by it either, so coming back from holiday and picking a scene used to change nothing. The scene select now checks command 69 first and, if the holiday timer is running, switches it off with command 41 before activating the scene you picked.
 

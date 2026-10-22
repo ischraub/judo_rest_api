@@ -199,9 +199,15 @@ confused with the two in command 69:
 Bit 5 means the holiday timer in one and a micro leakage option in the other,
 so the registers must not be copied into one another.
 
-Command 41 has no documented read; `--holiday` tries whether it has one
-anyway. It is not part of the default run, because sending a write command
-without data may be taken as a write of empty flags.
+**Command 41 can be read after all.** Sent without data it answers with its
+two bytes - measured on an i-soft PRO: `0106`, meaning the holiday mode is on
+with six days. `--holiday` does this. It stays out of the default run because
+it sends a write command without data.
+
+So the holiday state must be read from command 41, not from command 69. Byte 1
+of command 69 mirrors the options of the *active scene*: its "timer_holiday"
+bit is clear while scene 0 runs even when the holiday mode is on, because that
+bit says this scene has no holiday timer, not that the device has none.
 
 ## HTTP errors the module returns
 

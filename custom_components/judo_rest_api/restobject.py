@@ -191,44 +191,42 @@ def _decode_date(field: str) -> date:
         raise JudoDecodeError(f"date: {day:02d}.{month:02d}.{year} is not a date") from err
 
 
-def holiday_is_active(status_raw: str | None) -> bool:
-    """Return whether command 69 reports the holiday timer as running."""
-    if not status_raw:
-        return False
-    try:
-        data = bytes.fromhex(status_raw)
-    except ValueError:
-        return False
-    return len(data) >= 2 and bool(data[1] & SCENE_OPTION_HOLIDAY)
+def holiday_flags(raw: str | None) -> int:
+    """Return command 41's flag byte as the device reports it.
 
-
-def holiday_off_flags(status_raw: str | None) -> int:
-    """Build command 41's flag byte with the holiday bit cleared.
-
-    Command 41 has no documented read, so the other flags it carries are
-    rebuilt from the leakage protection status in command 69 byte 2, where the
-    two micro leakage options correspond by name.
-
-    Bit 7, "Leckagealarm/schutz global AUS", is never set. Command 69 does not
-    report it in a form that can be read back, and of the two possible
-    mistakes - leaving leakage protection on when it was globally off, or
-    switching it off when it was on - only the first is safe.
+    Command 41 answers a request without data with its two bytes, flags and
+    days, so the flags can be written back with a single bit changed instead
+    of being rebuilt from elsewhere.
     """
-    leak = 0
-    if status_raw:
-        try:
-            data = bytes.fromhex(status_raw)
-        except ValueError:
-            data = b""
-        if len(data) >= 3:
-            leak = data[2]
+    if not raw:
+        return 0
+    try:
+        data = bytes.fromhex(raw)
+    except ValueError:
+        return 0
+    return data[0] if data else 0
 
-    flags = 0
-    if leak & LEAK_STATUS_MICRO_CLOSE:
-        flags |= HOLIDAY_FLAG_MICRO_CLOSE
-    if leak & LEAK_STATUS_MICRO_TEST:
-        flags |= HOLIDAY_FLAG_MICRO_AUTOTEST
-    return flags
+
+def holiday_days(raw: str | None) -> int:
+    """Return the holiday duration in days that command 41 reports."""
+    if not raw:
+        return 0
+    try:
+        data = bytes.fromhex(raw)
+    except ValueError:
+        return 0
+    return data[1] if len(data) > 1 else 0
+
+
+def holiday_is_active(raw: str | None) -> bool:
+    """Return whether command 41 reports the holiday mode as switched on.
+
+    Command 69 cannot answer this. Its byte 1 mirrors the options of the
+    *active scene*, which is why its "timer_holiday" bit is clear while scene
+    0 runs even though the holiday mode is on - the bit says that this scene
+    has no holiday timer, not that the device has none.
+    """
+    return bool(holiday_flags(raw) & HOLIDAY_FLAG_ACTIVE)
 
 
 def decode_item(
@@ -252,6 +250,8 @@ def decode_item(
     match rest_item.format:
         case FORMATS.NUMBER:
             return _to_int(field, rest_item.read_endian) / divider
+        case FORMATS.HOLIDAY:
+            return bool(_to_int(field, rest_item.read_endian) & HOLIDAY_FLAG_ACTIVE)
         case FORMATS.SERIAL:
             # An identifier, not a measurement: a string, so it can never be
             # rendered as "2825589796.0" or recorded as a statistic.
@@ -458,15 +458,29 @@ class RestObject:
         """Trigger a button item."""
         await self._rest_api.async_set(self._rest_item.address_write, "")
 
-    async def async_end_holiday(self, flags: int) -> None:
-        """Switch the holiday mode off, keeping the other options it carries.
+    async def async_write_holiday(self, flags: int, days: int) -> None:
+        """Write command 41: the flag byte and a duration in days."""
+        if not 0 <= days <= 0xFF:
+            raise JudoApiError(f"holiday duration {days} out of range")
+        _LOGGER.info("Writing holiday mode flags 0x%02X, %s day(s)", flags, days)
+        await self._rest_api.async_set(
+            CONST.HOLIDAY_COMMAND, f"{flags & 0xFF:02X}{days:02X}"
+        )
 
-        Command 41 takes the flag byte and a duration in days; zero days with
-        the active bit cleared ends it.
+    async def async_end_holiday(self, raw: str | None) -> None:
+        """Switch the holiday mode off, changing nothing else.
+
+        The flags and the day count are written back exactly as the device
+        reported them, with only the active bit cleared. Rebuilding them from
+        elsewhere risked silently turning other options off.
         """
-        flags &= ~HOLIDAY_FLAG_ACTIVE
-        _LOGGER.info("Ending holiday mode, writing flags 0x%02X", flags)
-        await self._rest_api.async_set(CONST.HOLIDAY_COMMAND, f"{flags:02X}00")
+        await self.async_write_holiday(
+            holiday_flags(raw) & ~HOLIDAY_FLAG_ACTIVE, holiday_days(raw)
+        )
+
+    async def async_start_holiday(self, raw: str | None, days: int) -> None:
+        """Switch the holiday mode on for a number of days."""
+        await self.async_write_holiday(holiday_flags(raw) | HOLIDAY_FLAG_ACTIVE, days)
 
     async def async_activate_scene(self, scene: int, duration: int) -> None:
         """Activate a water scene for a duration.

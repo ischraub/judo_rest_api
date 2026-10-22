@@ -1,0 +1,38 @@
+"""Setting up my binary sensor entities."""
+
+from __future__ import annotations
+
+import logging
+
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from .configentry import MyConfigEntry
+from .const import TYPES
+from .entity_helpers import build_entity_list
+from .jdconst import DEVICELISTS
+
+_LOGGER: logging.Logger = logging.getLogger(name=__name__)
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    config_entry: MyConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up the binary sensor platform."""
+    _useless = hass
+    entries = []
+
+    coordinator = config_entry.runtime_data.coordinator
+
+    for device in DEVICELISTS:
+        entries = await build_entity_list(
+            entries=entries,
+            config_entry=config_entry,
+            rest_items=device,
+            item_type=TYPES.BINARY_SENSOR,
+            coordinator=coordinator,
+        )
+
+    async_add_entities(entries)

@@ -246,6 +246,28 @@ PARAMS_TEMPERATURE: dict = {
     "stateclass": SensorStateClass.MEASUREMENT,
 }
 
+PARAMS_HOLIDAY: dict = {
+    "icon": "mdi:beach",
+}
+
+PARAMS_HOLIDAY_DAYS: dict = {
+    "icon": "mdi:calendar-range",
+    "min": 1,
+    "max": 60,
+    "step": 1,
+    "precision": 0,
+    "unit": UnitOfTime.DAYS,
+    "default": 7,
+    "stateclass": None,
+}
+
+PARAMS_HOLIDAY_START: dict = {
+    "icon": "mdi:beach",
+    # Where the button takes the current flags and the number of days from.
+    "flags_item": "holiday_mode",
+    "days_item": "holiday_days",
+}
+
 PARAMS_SCENE: dict = {
     "icon": "mdi:water-sync",
     # Which item holds the duration to send along with the scene.
@@ -318,6 +340,12 @@ REST_SYS_ITEMS: list[RestItem] = [
     # once per scan. Command 69 needs device software newer than 1.5.31.
     RestItem( address_read="6900", read_bytes = 2, read_index=4, mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_FLOW, translation_key="water_flow"),
     RestItem( address_read="6900", read_bytes = 2, read_index=10, mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_TEMPERATURE, translation_key="water_temperature"),
+
+    # Command 41 answers a request without data with its flags and day count,
+    # so the holiday mode can be read as well as written.
+    RestItem( address_read="4100", read_bytes = 1, read_index=0, mformat=FORMATS.HOLIDAY, mtype=TYPES.BINARY_SENSOR, device=DEVICES.SYS, params=PARAMS_HOLIDAY, translation_key="holiday_mode"),
+    RestItem(mformat=FORMATS.NUMBER, mtype=TYPES.NUMBER_LOCAL, device=DEVICES.SYS, params=PARAMS_HOLIDAY_DAYS, translation_key="holiday_days"),
+    RestItem(address_write="4100", write_bytes = 2, write_index=0, mformat=FORMATS.BUTTON, mtype=TYPES.HOLIDAY_BUTTON, device=DEVICES.SYS, params=PARAMS_HOLIDAY_START, translation_key="holiday_start"),
 
     RestItem(mformat=FORMATS.SCENE_DURATION, mtype=TYPES.SELECT_LOCAL, device=DEVICES.SYS, resultlist=SCENE_DURATION_LIST, params=PARAMS_SCENE_DURATION, translation_key="water_scene_duration"),
 

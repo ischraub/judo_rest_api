@@ -293,6 +293,11 @@ class MyCoordinator(DataUpdateCoordinator[dict[str, ItemValue]]):
             "serial_number": self._value_by_translation_key("device_number"),
         }
 
+    def raw_by_translation_key(self, translation_key: str | None) -> str | None:
+        """Return the raw payload of an item named by its translation key."""
+        item = self.item_by_translation_key(translation_key) if translation_key else None
+        return self.raw_of(item.key) if item else None
+
     def item_by_translation_key(self, translation_key: str) -> RestItem | None:
         """Look an item up by its translation key."""
         for item in self._restitems:
