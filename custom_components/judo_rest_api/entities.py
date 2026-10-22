@@ -18,7 +18,13 @@ from .configentry import MyConfigEntry
 from .const import CONF, CONST, FORMATS, TYPES
 from .coordinator import MyCoordinator
 from .items import RestItem
-from .restobject import JudoApiError, JudoDecodeError, RestObject
+from .restobject import (
+    BASE_SCENE_NUMBER,
+    SCENE_DURATION_UNLIMITED,
+    JudoApiError,
+    JudoDecodeError,
+    RestObject,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -361,11 +367,16 @@ class MySceneEntity(MyEntity, SelectEntity):  # pylint: disable=W0223
     async def async_select_option(self, option: str) -> None:
         """Run the chosen scene, starting the holiday mode when it is chosen.
 
-        The holiday mode is the "Urlaub geniessen" scene: the device runs it
+        Three of the eleven scenes do not take the duration from the select:
+        "Alltag meistern" is the base scene and runs until something replaces
+        it, "Urlaub geniessen" counts its duration in days, and the rest take
+        the hours it holds.
+
+        The holiday mode is the "Urlaub geniessen" scene - the device runs it
         exactly while that scene is active. Starting it has its own command
-        because its duration is in days, but ending it does not - command 41
-        refuses a write with the active bit cleared, and the mode is over as
-        soon as another scene is activated.
+        because of those days, but ending it does not: command 41 refuses a
+        write with the active bit cleared, and the mode is over as soon as
+        another scene is activated.
         """
         ro = RestObject(self._rest_api, self._rest_item)
 
@@ -384,7 +395,13 @@ class MySceneEntity(MyEntity, SelectEntity):  # pylint: disable=W0223
         scene = self._rest_item.get_number_from_translation_key(option)
         if scene is None or scene < 0:
             raise HomeAssistantError(f"Unknown water scene {option!r}")
-        duration = self._duration()
+        # The base scene runs until something else replaces it, so the
+        # duration select does not apply to it.
+        duration = (
+            SCENE_DURATION_UNLIMITED
+            if scene == BASE_SCENE_NUMBER
+            else self._duration()
+        )
         try:
             await ro.async_activate_scene(scene, duration)
         except (JudoApiError, JudoDecodeError) as err:

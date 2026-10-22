@@ -36,6 +36,13 @@ PRO_FAMILY = frozenset({"58", "4B", "4C"})
 # the next start will use, not what is running.
 HOLIDAY_SCENE_NUMBER = 0x03
 
+# Scene 0, "Alltag meistern", is the base scene the device falls back to. It
+# has no duration - the Judo app offers none for it - so it is always sent
+# with the "unendlich" value command 36 documents rather than with whatever
+# the duration select happens to hold.
+BASE_SCENE_NUMBER = 0x00
+SCENE_DURATION_UNLIMITED = 0xFFFF
+
 # Command 69 byte 1, "Aktive Szenenoptionen".
 SCENE_OPTION_HOLIDAY = 0x20
 

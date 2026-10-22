@@ -41,6 +41,12 @@ Scene numbers: 0 Alltag meistern, 1 Koerper pflegen, 2 Garten bewaessern,
 Durations listed for command 36: `000F` 15 min, `001E` 30 min, `002D` 45 min,
 `0100` 1 h, `0200` 2 h, `0600` 6 h, `0C00` 12 h, `FFFF` unlimited.
 
+Not every scene takes one. Scene 0, "Alltag meistern", is the base scene the
+device falls back to and runs until something replaces it - the Judo app
+offers no duration for it - so it goes out as `FFFF`. Scene 3, "Urlaub
+geniessen", counts its duration in days and is started with command 41
+instead. The other nine take an hours value.
+
 The statistics commands need a date appended (day, month, year as 2 bytes
 little-endian): `/api/rest/FB001506E807` is 21.06.2024. Without it the device
 answers empty, and `FE00` answers with a chunked body whose framing is broken,

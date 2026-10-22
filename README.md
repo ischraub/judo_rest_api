@@ -1,3 +1,8 @@
+# Version 1.6.2
+**"Alltag meistern" has no duration.** It is the base scene the device falls back to and runs until something replaces it, which is why the Judo app offers no duration for it. It was being sent with whatever the duration select happened to hold - two hours by default - and is now always sent as "unendlich".
+
+Three of the eleven scenes treat the duration differently: the base scene ignores it, "Urlaub genießen" counts in days, and the other nine take the hours from the select.
+
 # Version 1.6.1
 **Command 41 only starts the holiday mode; it has no "off".** Written with the active bit cleared the device answers HTTP 500, "invalid argument" - `/api/rest/41000002` was refused where `/api/rest/41000102` had been accepted a moment earlier. Leaving holiday mode through it failed, so switching away from the holiday scene raised an error instead of switching.
 
