@@ -48,6 +48,9 @@ class MainConstants:
     BUSY_RETRY_DELAY = 2.0
     # Command 41, "Urlaubsmodus schreiben".
     HOLIDAY_COMMAND = "4100"
+    # One action that sets the duration and the scene together, so an
+    # automation cannot get their order wrong.
+    SERVICE_ACTIVATE_SCENE = "activate_scene"
     # Margin kept free at the end of a scan so the next one starts on time.
     SCAN_MARGIN = 5
 

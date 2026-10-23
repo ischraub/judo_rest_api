@@ -204,5 +204,54 @@
       }
     }
   },
-  "title": "Judo Wasseraufbereitung"
+  "title": "Judo Wasseraufbereitung",
+  "selector": {
+    "scene": {
+      "options": {
+        "scene_everyday": "Alltag meistern",
+        "scene_body_care": "Körper pflegen",
+        "scene_garden": "Garten bewässern",
+        "scene_holiday": "Urlaub genießen",
+        "scene_laundry": "Wäsche waschen",
+        "scene_pressure_washing": "Hochdruckreinigen",
+        "scene_pool": "Pool befüllen",
+        "scene_heating": "Heizung befüllen",
+        "scene_custom_1": "Eigene Szene 1",
+        "scene_custom_2": "Eigene Szene 2",
+        "scene_custom_3": "Eigene Szene 3"
+      }
+    },
+    "scene_duration": {
+      "options": {
+        "duration_15_min": "15 Minuten",
+        "duration_30_min": "30 Minuten",
+        "duration_45_min": "45 Minuten",
+        "duration_1_h": "1 Stunde",
+        "duration_2_h": "2 Stunden",
+        "duration_6_h": "6 Stunden",
+        "duration_12_h": "12 Stunden",
+        "duration_unlimited": "Unbegrenzt"
+      }
+    }
+  },
+  "services": {
+    "activate_scene": {
+      "name": "Wasserszene aktivieren",
+      "description": "Setzt die Dauer und aktiviert die Szene in einem Schritt.",
+      "fields": {
+        "scene": {
+          "name": "Szene",
+          "description": "Die zu aktivierende Wasserszene."
+        },
+        "duration": {
+          "name": "Dauer",
+          "description": "Wie lange die Szene laufen soll. Gilt nicht für „Alltag meistern“ (dauerhaft) und nicht für „Urlaub genießen“ (dort zählen Tage). Ohne Angabe bleibt die zuletzt gesetzte Dauer."
+        },
+        "days": {
+          "name": "Urlaubstage",
+          "description": "Nur für „Urlaub genießen“: Dauer des Urlaubsmodus in Tagen."
+        }
+      }
+    }
+  }
 }

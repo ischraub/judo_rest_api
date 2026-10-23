@@ -9,7 +9,7 @@ from homeassistant.components.button import ButtonEntity
 from homeassistant.components.number import NumberEntity
 from homeassistant.components.select import SelectEntity
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -346,12 +346,44 @@ class MySceneEntity(MyEntity, SelectEntity):  # pylint: disable=W0223
         value = self._item_value
         return value if value in self._attr_options else None
 
+    def _sibling(self, param: str) -> RestItem:
+        """Return the item named by one of this scene's params."""
+        name = (self._rest_item.params or {}).get(param)
+        item = self._coordinator.item_by_translation_key(name)
+        if item is None:
+            raise HomeAssistantError(f"No item {name!r} configured for {param}")
+        return item
+
+    async def async_activate_scene_service(
+        self, scene: str, duration: str | None = None, days: int | None = None
+    ) -> None:
+        """Set the duration and activate a scene in one step.
+
+        Doing it in two service calls works, but only in the right order: the
+        scene reads the duration as it is activated. Here there is no order to
+        get wrong.
+        """
+        if scene not in self._attr_options:
+            raise ServiceValidationError(f"Unknown water scene {scene!r}")
+        if duration is not None:
+            item = self._sibling("duration_item")
+            options = [s.translation_key for s in item.resultlist or []]
+            if duration not in options:
+                raise ServiceValidationError(f"Unknown scene duration {duration!r}")
+            self._coordinator.async_set_value(item.key, duration)
+        if days is not None:
+            if not 1 <= int(days) <= 60:
+                raise ServiceValidationError(
+                    f"Holiday duration {days} is not between 1 and 60 days"
+                )
+            self._coordinator.async_set_value(
+                self._sibling("days_item").key, float(days)
+            )
+        await self.async_select_option(scene)
+
     def _duration(self) -> int:
         """Return the duration to send, from the sibling duration item."""
-        name = (self._rest_item.params or {}).get("duration_item")
-        item = self._coordinator.item_by_translation_key(name) if name else None
-        if item is None:
-            raise HomeAssistantError(f"No duration item {name!r} configured")
+        item = self._sibling("duration_item")
         option = self._coordinator.value_of(item.key) or (item.params or {}).get(
             "default"
         )
@@ -362,10 +394,7 @@ class MySceneEntity(MyEntity, SelectEntity):  # pylint: disable=W0223
 
     def _holiday_days(self) -> int:
         """Return the holiday duration in days, from the sibling item."""
-        name = (self._rest_item.params or {}).get("days_item")
-        item = self._coordinator.item_by_translation_key(name) if name else None
-        if item is None:
-            raise HomeAssistantError(f"No holiday duration item {name!r} configured")
+        item = self._sibling("days_item")
         value = self._coordinator.value_of(item.key)
         if value is None:
             value = (item.params or {}).get("default", 1)

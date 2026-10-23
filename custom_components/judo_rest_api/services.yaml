@@ -1,0 +1,46 @@
+# Actions this integration offers.
+activate_scene:
+  target:
+    entity:
+      integration: judo_rest_api
+      domain: select
+  fields:
+    scene:
+      required: true
+      example: scene_body_care
+      selector:
+        select:
+          translation_key: scene
+          options:
+            - scene_everyday
+            - scene_body_care
+            - scene_garden
+            - scene_holiday
+            - scene_laundry
+            - scene_pressure_washing
+            - scene_pool
+            - scene_heating
+            - scene_custom_1
+            - scene_custom_2
+            - scene_custom_3
+    duration:
+      example: duration_2_h
+      selector:
+        select:
+          translation_key: scene_duration
+          options:
+            - duration_15_min
+            - duration_30_min
+            - duration_45_min
+            - duration_1_h
+            - duration_2_h
+            - duration_6_h
+            - duration_12_h
+            - duration_unlimited
+    days:
+      example: 7
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: d

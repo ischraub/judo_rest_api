@@ -1,3 +1,20 @@
+# Version 1.8.0
+**One action for a scene and its duration.** Setting them with two `select.select_option` calls works, but only in the right order - the scene reads the duration as it is activated, so the duration has to be set first. `judo_rest_api.activate_scene` takes both, and there is no order to get wrong:
+
+```yaml
+actions:
+  - action: judo_rest_api.activate_scene
+    target:
+      entity_id: select.judo_wasserszene
+    data:
+      scene: scene_body_care
+      duration: duration_2_h
+```
+
+`duration` and `days` are optional; without them the values currently set are used. `days` applies to the holiday scene, which counts in days rather than hours. The scene and duration appear as dropdowns in the automation editor.
+
+The two selects stay as they are for operating the device by hand.
+
 # Version 1.7.1
 **A spent duration is no longer restored after a restart.** Up to 1.6.3 the duration select displayed its default when nothing was set, and Home Assistant recorded that as the entity's state. On the first restart after upgrading, `RestoreEntity` brought it back as though it had been chosen - so a device sitting on the base scene showed "2 hours" where 1.7.0 means to show nothing.
 

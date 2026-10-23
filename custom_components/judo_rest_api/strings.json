@@ -204,5 +204,54 @@
       }
     }
   },
-  "title": "Judo Water Treatment"
+  "title": "Judo Water Treatment",
+  "selector": {
+    "scene": {
+      "options": {
+        "scene_everyday": "Everyday",
+        "scene_body_care": "Body care",
+        "scene_garden": "Garden watering",
+        "scene_holiday": "Holiday",
+        "scene_laundry": "Laundry",
+        "scene_pressure_washing": "Pressure washing",
+        "scene_pool": "Filling the pool",
+        "scene_heating": "Filling the heating system",
+        "scene_custom_1": "Custom scene 1",
+        "scene_custom_2": "Custom scene 2",
+        "scene_custom_3": "Custom scene 3"
+      }
+    },
+    "scene_duration": {
+      "options": {
+        "duration_15_min": "15 minutes",
+        "duration_30_min": "30 minutes",
+        "duration_45_min": "45 minutes",
+        "duration_1_h": "1 hour",
+        "duration_2_h": "2 hours",
+        "duration_6_h": "6 hours",
+        "duration_12_h": "12 hours",
+        "duration_unlimited": "Unlimited"
+      }
+    }
+  },
+  "services": {
+    "activate_scene": {
+      "name": "Activate water scene",
+      "description": "Sets the duration and activates the scene in one step.",
+      "fields": {
+        "scene": {
+          "name": "Scene",
+          "description": "The water scene to activate."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "How long the scene should run. Does not apply to \"Everyday\" (permanent) nor to \"Holiday\" (counted in days). Left out, the duration last set stays."
+        },
+        "days": {
+          "name": "Holiday days",
+          "description": "For \"Holiday\" only: how many days the holiday mode should run."
+        }
+      }
+    }
+  }
 }
