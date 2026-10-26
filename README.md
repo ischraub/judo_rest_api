@@ -1,3 +1,10 @@
+# Version 1.8.1
+**A reading outside what the device can physically be measuring is refused.** After a scene expired, a device reported a water temperature of 5891 °C. That is not a measurement, and letting it through puts it in the recorder's statistics, where it wrecks the scale of every graph it appears in - the same damage the truncated water readings did before 1.1.0.
+
+An item can now state the range it must fall in. Outside it the entity goes unavailable, which is what a value nobody can use deserves. The water temperature is bounded to 0-80 °C.
+
+This is a guard, not an explanation: the device really does report that number, and why it does after a scene expires is still open.
+
 # Version 1.8.0
 **One action for a scene and its duration.** Setting them with two `select.select_option` calls works, but only in the right order - the scene reads the duration as it is activated, so the duration has to be set first. `judo_rest_api.activate_scene` takes both, and there is no order to get wrong:
 

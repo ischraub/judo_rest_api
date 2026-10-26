@@ -232,6 +232,24 @@ def holiday_flags(raw: str | None) -> int:
     return data[0] if data else 0
 
 
+def _plausible(rest_item: RestItem, value: float) -> float:
+    """Refuse a reading the device cannot physically be reporting.
+
+    A water temperature of 5891 C is not a measurement, and letting it through
+    puts it in the recorder's statistics, where it wrecks the scale of every
+    graph it appears in. An item can give a range it must fall in; outside it
+    the entity goes unavailable, which is what a value nobody can use deserves.
+    """
+    params = rest_item.params or {}
+    low, high = params.get("plausible_min"), params.get("plausible_max")
+    if (low is not None and value < low) or (high is not None and value > high):
+        raise JudoDecodeError(
+            f"{rest_item.translation_key}: {value} is outside the plausible "
+            f"range {low}..{high}"
+        )
+    return value
+
+
 def decode_item(
     rest_item: RestItem, raw: str, divider: float = 1, devicetype: str | None = None
 ) -> Any:
@@ -252,7 +270,9 @@ def decode_item(
 
     match rest_item.format:
         case FORMATS.NUMBER:
-            return _to_int(field, rest_item.read_endian) / divider
+            return _plausible(
+                rest_item, _to_int(field, rest_item.read_endian) / divider
+            )
         case FORMATS.HOLIDAY:
             return _to_int(field, rest_item.read_endian) == HOLIDAY_SCENE_NUMBER
         case FORMATS.SERIAL:

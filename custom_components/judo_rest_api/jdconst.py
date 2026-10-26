@@ -241,6 +241,11 @@ PARAMS_FLOW: dict = {
 
 PARAMS_TEMPERATURE: dict = {
     "precision": 0,
+    # Seen on a device after a scene expired: 5891 C. Outside this range the
+    # sensor goes unavailable rather than feeding the statistics a number no
+    # thermometer produced.
+    "plausible_min": 0,
+    "plausible_max": 80,
     "unit": UnitOfTemperature.CELSIUS,
     "deviceclass": SensorDeviceClass.TEMPERATURE,
     "stateclass": SensorStateClass.MEASUREMENT,
