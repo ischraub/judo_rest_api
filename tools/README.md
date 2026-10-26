@@ -89,6 +89,26 @@ order, read `2500` again N days later: if the device stores the counter
 big-endian the day bytes go `0209` -> `020C` after 3 days, if little-endian
 they go `0209` -> `0509`.
 
+### What the document gets wrong about the scenes
+
+Checked against the current command list, which contradicts itself and its own
+examples:
+
+* **Scene numbering.** Command 36 says "szenennummer 1..9 + A", commands 37
+  and 38 say "1..10", and the list beside them runs "Szene 0: Alltag
+  meistern" to "Szene A: Custom Szene 3". Measured, it is the list that holds:
+  0-based, and scene 0 can be activated although it is outside every stated
+  range.
+* **Weekday bits.** The description says the days run "Sa..So". Its own
+  example gives `0x07` for a scene it describes as running on Mo, Di and Mi,
+  which only works counting from Monday.
+* **The example for command 69 is 15 bytes** where the line above it says 16.
+
+What it does get right, and this integration follows: 16 bytes for command 69
+with the last 4 unused, and the field order of command 37 - its scene example
+is 14 bytes, the scene number plus the 8 fixed fields and the 5 of schedule
+that a read returns without the number.
+
 ### What the document gets wrong for this family
 
 The i-soft PRO page (device types 0x58, 0x4b, 0x4c) is the only one whose
@@ -125,7 +145,7 @@ bytes where there are eight. What is left lines up exactly.
 | 5 | Withdrawal time monitored |
 | 6 | Favourite |
 | 7 | Time control on/off |
-| 8..12 | Weekly schedule: active days (bit 0 = Sunday), start HH MM, end HH MM |
+| 8..12 | Weekly schedule: active days (**bit 0 = Monday**), start HH MM, end HH MM |
 | 8..15 | Only for "Urlaub geniessen": start year (2 byte little-endian), month, day, stop year, month, day |
 
 So a normal scene answers with 13 bytes and "Urlaub geniessen" with 16.

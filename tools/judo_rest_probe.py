@@ -158,9 +158,12 @@ def describe_scene(raw: str) -> str:
             f"-{rest[7]:02d}.{rest[6]:02d}.{stop_year}"
         )
     elif len(rest) >= 5:
+        # Bit 0 is Monday. The document says the days run "Sa..So", but its
+        # own example gives 0x07 for a scene it describes as running on Mo,
+        # Di and Mi, which only works counting from Monday.
         days = [
             name
-            for bit, name in enumerate(("So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"))
+            for bit, name in enumerate(("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"))
             if rest[0] & (1 << bit)
         ]
         out.append(
