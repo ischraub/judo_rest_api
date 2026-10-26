@@ -68,6 +68,7 @@ class RestItem:
         entity_category: EntityCategory = None,
         read_endian: str = "little",
         response_bytes: int | None = None,
+        alt_response: dict[int, int] | None = None,
     ) -> None:
         """Initialise RestItem."""
         self._translation_key = translation_key
@@ -85,6 +86,7 @@ class RestItem:
         self._params = params
         self._read_endian = read_endian
         self._response_bytes = response_bytes
+        self._alt_response = alt_response or {}
 
     @property
     def params(self) -> dict:
@@ -110,6 +112,16 @@ class RestItem:
         error.
         """
         return self._response_bytes
+
+    @property
+    def alt_response(self) -> dict[int, int]:
+        """Return the other answer lengths this command has, and their shift.
+
+        Maps a length in bytes to how many bytes are missing from the front,
+        so a field's offset in the short answer is its usual one minus that.
+        A field that falls before the start is simply not in it.
+        """
+        return self._alt_response
 
     @property
     def read_endian(self) -> str:

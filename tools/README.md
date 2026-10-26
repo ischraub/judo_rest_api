@@ -181,6 +181,22 @@ Needs device software newer than 1.5.31. 16 byte answer:
 
 This is the only way to ask which scene is running.
 
+**It has a second, shorter form.** For the hours after a scene expires the
+device answers with **13 bytes**, leaving off the first three - the active
+scene, its options and the leakage status. Every remaining field sits three
+bytes earlier:
+
+```
+16 byte  00CF27 0000 0000 0000 1100 BA01 0C00
+13 byte         0000 7C00 0000 1100 4B03 1700
+                     ^^^^                      counts minutes since the scene ended
+                               ^^^^            17 C in both forms
+```
+
+Reading the short form at the long form's offsets is where a water temperature
+of 5891 C came from. The scene and the holiday mode cannot be recovered from
+it; the temperature and the flow can.
+
 **Measured on an i-soft PRO running 1.5.32**, which confirms the layout:
 
 ```

@@ -260,19 +260,27 @@ def decode_item(
     plausible looking wrong number.
     """
     what = rest_item.translation_key
+    index = rest_item.read_index
     expected = rest_item.response_bytes
     if expected is not None and len(raw) != expected * 2:
-        # Not a truncated answer but a different message: the fields sit at
-        # other offsets, so reading the usual ones gives a plausible-looking
-        # number from the wrong place. A 13 byte answer to command 69 put the
-        # water temperature at 5891 C that way.
-        raise JudoDecodeError(
-            f"{what}: expected a {expected} byte answer, got "
-            f"{len(raw) // 2} ({raw!r})"
-        )
+        # A different length is a different message, not a truncated one: the
+        # fields sit at other offsets, and reading the usual ones gives a
+        # plausible looking number from the wrong place. That is where a water
+        # temperature of 5891 C came from.
+        shift = rest_item.alt_response.get(len(raw) // 2)
+        if shift is None:
+            raise JudoDecodeError(
+                f"{what}: expected a {expected} byte answer, got "
+                f"{len(raw) // 2} ({raw!r})"
+            )
+        index -= shift
+        if index < 0:
+            raise JudoDecodeError(
+                f"{what}: not carried by the {len(raw) // 2} byte answer"
+            )
     field = _hex_field(
         raw,
-        rest_item.read_index,
+        index,
         rest_item.read_bytes,
         what,
         exact=rest_item.format is not FORMATS.TEXT,

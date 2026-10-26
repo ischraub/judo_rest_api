@@ -338,17 +338,17 @@ REST_SYS_ITEMS: list[RestItem] = [
     RestItem(address_write="3D00", write_bytes = 0, write_index=0, mformat=FORMATS.BUTTON, mtype=TYPES.BUTTON, device=DEVICES.SYS, params=PARAMS_OPEN, translation_key="leakage_protection_open"),
     RestItem(address_write="350000", write_bytes = 0, write_index=0, mformat=FORMATS.BUTTON, mtype=TYPES.BUTTON, device=DEVICES.SYS, params=PARAMS_REG, translation_key="start_regeneration"),
 
-    RestItem(address_read="6900", response_bytes=16, read_bytes = 1, read_index=0, address_write="3600", write_bytes = 3, write_index=0, mformat=FORMATS.SCENE, mtype=TYPES.SCENE, device=DEVICES.SYS, resultlist=SCENE_LIST, params=PARAMS_SCENE, translation_key="water_scene"),
+    RestItem(address_read="6900", response_bytes=16, alt_response={13: 3}, read_bytes = 1, read_index=0, address_write="3600", write_bytes = 3, write_index=0, mformat=FORMATS.SCENE, mtype=TYPES.SCENE, device=DEVICES.SYS, resultlist=SCENE_LIST, params=PARAMS_SCENE, translation_key="water_scene"),
     # All of these come out of one 6900 answer, which the coordinator fetches
     # once per scan. Command 69 needs device software newer than 1.5.31.
-    RestItem( address_read="6900", response_bytes=16, read_bytes = 2, read_index=4, mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_FLOW, translation_key="water_flow"),
-    RestItem( address_read="6900", response_bytes=16, read_bytes = 2, read_index=10, mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_TEMPERATURE, translation_key="water_temperature"),
+    RestItem( address_read="6900", response_bytes=16, alt_response={13: 3}, read_bytes = 2, read_index=4, mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_FLOW, translation_key="water_flow"),
+    RestItem( address_read="6900", response_bytes=16, alt_response={13: 3}, read_bytes = 2, read_index=10, mformat=FORMATS.NUMBER, mtype=TYPES.SENSOR, device=DEVICES.SYS, params=PARAMS_TEMPERATURE, translation_key="water_temperature"),
 
     # The holiday mode runs exactly while scene 3 is the active one, which is
     # command 69 byte 0 - the same answer the scene select reads, so this
     # costs no extra request. Command 41 cannot say: read back it reports the
     # stored configuration, not the running state.
-    RestItem( address_read="6900", response_bytes=16, read_bytes = 1, read_index=0, mformat=FORMATS.HOLIDAY, mtype=TYPES.BINARY_SENSOR, device=DEVICES.SYS, params=PARAMS_HOLIDAY, translation_key="holiday_mode"),
+    RestItem( address_read="6900", response_bytes=16, alt_response={13: 3}, read_bytes = 1, read_index=0, mformat=FORMATS.HOLIDAY, mtype=TYPES.BINARY_SENSOR, device=DEVICES.SYS, params=PARAMS_HOLIDAY, translation_key="holiday_mode"),
     RestItem(mformat=FORMATS.NUMBER, mtype=TYPES.NUMBER_LOCAL, device=DEVICES.SYS, params=PARAMS_HOLIDAY_DAYS, translation_key="holiday_days"),
 
     RestItem(mformat=FORMATS.SCENE_DURATION, mtype=TYPES.SELECT_LOCAL, device=DEVICES.SYS, resultlist=SCENE_DURATION_LIST, params=PARAMS_SCENE_DURATION, translation_key="water_scene_duration"),

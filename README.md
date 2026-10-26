@@ -1,3 +1,12 @@
+# Version 1.8.3
+**Command 69 has a second, shorter answer, and it is read now.** For the hours after a scene expires the device answers with 13 bytes instead of 16, leaving off the first three: the active scene, its options and the leakage status. 1.8.2 refused it, which cost the water temperature, the flow, the scene and the holiday mode for most of the day.
+
+The shorter form is decoded at an offset of three. What it does carry comes back: **water temperature and current flow**. What it does not carry stays unavailable: **the scene and the holiday mode** are simply not in that message, and guessing them would be inventing.
+
+The alignment is not a guess. Across the change of message form the water temperature reads 17 °C either way - byte 10 of the long answer, byte 7 of the short one - and holds there over every scan while the counter three bytes ahead of it climbs by one a minute, having started the minute the scene expired.
+
+Any other length is still refused.
+
 # Version 1.8.2
 Two bugs of mine, both found by a debug log from a device whose scene had just expired.
 
