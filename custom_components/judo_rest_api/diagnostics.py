@@ -34,7 +34,7 @@ async def async_get_config_entry_diagnostics(
         for item in device:
             item_value = data.get(item.key)
             failure = coordinator.last_error(item.key)
-            entry = {
+            record = {
                 "translation_key": item.translation_key,
                 "address_read": item.address_read,
                 "address_write": item.address_write,
@@ -49,11 +49,12 @@ async def async_get_config_entry_diagnostics(
                 # The payload of a failed item is the whole point of looking
                 # here, so it is reported even though it did not decode.
                 raw, message = failure
-                entry["raw"] = raw
-                entry["error"] = message
+                record["raw"] = raw
+                record["error"] = message
                 if raw is not None:
-                    entry["raw_bytes"] = len(raw) // 2
-            items.append(entry)
+                    record["raw_bytes"] = len(raw) // 2
+            record["response_bytes"] = item.response_bytes
+            items.append(record)
 
     return {
         "config": {

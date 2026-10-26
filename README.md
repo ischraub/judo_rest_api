@@ -1,3 +1,15 @@
+# Version 1.8.2
+Two bugs of mine, both found by a debug log from a device whose scene had just expired.
+
+* **Diagnostics returned HTTP 500 and has done since 1.1.1.** A loop variable named `entry` shadowed the config entry it was building the report from. Renamed.
+* **A reply of the wrong length was decoded anyway.** For some hours after a scene expires the device answers command 69 with **13 bytes instead of 16**, dropping the first three - the scene, its options and the leakage status. Read at the usual offsets that puts the water temperature where the two "unused" bytes belong, which is where 5891 °C came from. It was never a reading; the length check only required *enough* bytes, not the right number.
+
+  Items whose command carries several fields at fixed offsets now state how long the whole answer has to be, and anything else is refused. In that state the scene, the flow, the temperature and the holiday mode go unavailable, which is the honest answer: the message is a different one and nothing is known about what it means.
+
+The scene shown as "Alltag meistern" during those hours was an accident of the same shift - it was the leakage-reason byte. What the device really runs then is not known.
+
+Not a bug here: the target hardness of 0 °dH that command 51 reports in the same state is a two byte answer of the expected length. The device means it.
+
 # Version 1.8.1
 **A reading outside what the device can physically be measuring is refused.** After a scene expired, a device reported a water temperature of 5891 °C. That is not a measurement, and letting it through puts it in the recorder's statistics, where it wrecks the scale of every graph it appears in - the same damage the truncated water readings did before 1.1.0.
 

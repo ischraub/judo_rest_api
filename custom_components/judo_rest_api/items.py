@@ -67,6 +67,7 @@ class RestItem:
         params: dict = None,
         entity_category: EntityCategory = None,
         read_endian: str = "little",
+        response_bytes: int | None = None,
     ) -> None:
         """Initialise RestItem."""
         self._translation_key = translation_key
@@ -83,6 +84,7 @@ class RestItem:
         self._resultlist = resultlist
         self._params = params
         self._read_endian = read_endian
+        self._response_bytes = response_bytes
 
     @property
     def params(self) -> dict:
@@ -97,6 +99,17 @@ class RestItem:
     def key(self) -> str:
         """Return the key this item's value is stored under in the coordinator."""
         return self._device + "_" + self._translation_key
+
+    @property
+    def response_bytes(self) -> int | None:
+        """Return how long this command's whole answer has to be.
+
+        Set where the answer carries several fields at fixed offsets. A
+        shorter answer there is not a truncated one but a different message,
+        and reading the old offsets out of it yields rubbish rather than an
+        error.
+        """
+        return self._response_bytes
 
     @property
     def read_endian(self) -> str:
